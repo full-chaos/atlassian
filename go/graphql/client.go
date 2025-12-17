@@ -1,0 +1,295 @@
+package graphql
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"log/slog"
+)
+
+const defaultUserAgent = "atlassian-graphql-go/0.1.0"
+const defaultTimeout = 30 * time.Second
+const defaultRetries429 = 2
+const defaultMaxWait = 60 * time.Second
+
+type Client struct {
+	BaseURL               string
+	HTTPClient            *http.Client
+	Auth                  AuthProvider
+	Strict                bool
+	Logger                *slog.Logger
+	MaxRetries429         int
+	MaxWait               time.Duration
+	EnableLocalThrottling bool
+	UserAgent             string
+	Now                   func() time.Time
+	Sleep                 func(time.Duration)
+
+	localBucket *tokenBucket
+}
+
+func (c *Client) Execute(ctx context.Context, query string, variables map[string]any, operationName string, experimentalAPIs []string, estimatedCost int) (*Result, error) {
+	if strings.TrimSpace(query) == "" {
+		return nil, errors.New("query must be provided")
+	}
+	if strings.TrimSpace(c.BaseURL) == "" {
+		return nil, errors.New("BaseURL is required")
+	}
+
+	httpClient := c.HTTPClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: defaultTimeout}
+	}
+
+	nowFn := c.Now
+	if nowFn == nil {
+		nowFn = time.Now
+	}
+	sleepFn := c.Sleep
+	if sleepFn == nil {
+		sleepFn = time.Sleep
+	}
+
+	maxRetries := c.MaxRetries429
+	if maxRetries == 0 {
+		maxRetries = defaultRetries429
+	}
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+	maxWait := c.MaxWait
+	if maxWait <= 0 {
+		maxWait = defaultMaxWait
+	}
+	cost := estimatedCost
+	if cost <= 0 {
+		cost = 1
+	}
+
+	var bucket *tokenBucket
+	if c.EnableLocalThrottling {
+		if c.localBucket == nil {
+			c.localBucket = newTokenBucket(nowFn, sleepFn)
+		} else {
+			c.localBucket.now = nowFn
+			c.localBucket.sleep = sleepFn
+		}
+		bucket = c.localBucket
+	}
+
+	payload := GraphQLRequest{
+		Query:         query,
+		Variables:     variables,
+		OperationName: operationName,
+	}
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	graphQLURL := strings.TrimRight(c.BaseURL, "/") + "/graphql"
+
+	attempt := 0
+	for {
+		attempt++
+		if bucket != nil {
+			waited, err := bucket.consume(float64(cost), maxWait)
+			if err != nil {
+				return nil, err
+			}
+			if c.Logger != nil {
+				c.Logger.Debug(
+					"local throttling applied",
+					slog.Float64("estimated_cost", float64(cost)),
+					slog.Duration("wait", waited),
+					slog.String("endpoint", graphQLURL),
+				)
+			}
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, graphQLURL, bytes.NewReader(bodyBytes))
+		if err != nil {
+			return nil, fmt.Errorf("build request: %w", err)
+		}
+
+		headers := req.Header
+		headers.Set("Content-Type", "application/json")
+		headers.Set("Accept", "application/json")
+		ua := c.UserAgent
+		if ua == "" {
+			ua = defaultUserAgent
+		}
+		headers.Set("User-Agent", ua)
+		for _, beta := range experimentalAPIs {
+			if strings.TrimSpace(beta) != "" {
+				headers.Add("X-ExperimentalApi", beta)
+			}
+		}
+
+		if c.Auth != nil {
+			if err := c.Auth.Apply(req); err != nil {
+				return nil, fmt.Errorf("apply auth: %w", err)
+			}
+		}
+
+		start := nowFn()
+		resp, err := httpClient.Do(req)
+		duration := nowFn().Sub(start)
+		if c.Logger != nil {
+			c.Logger.Debug(
+				"graphql request",
+				slog.String("operationName", operationName),
+				slog.Int("attempt", attempt),
+				slog.Duration("duration", duration),
+				slog.Any("headers", sanitizeHeaders(req.Header)),
+			)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("execute request: %w", err)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read response: %w", err)
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			retryHeader := resp.Header.Get("Retry-After")
+			requestID := extractRequestID(body)
+			retryAt, parserUsed, parseErr := ParseRetryAfter(retryHeader)
+			if parseErr != nil {
+				if c.Logger != nil {
+					c.Logger.Debug(
+						"Retry-After parsing failed",
+						slog.String("retryAfter", retryHeader),
+						slog.String("parser", "none"),
+						slog.String("operationName", operationName),
+					)
+				}
+				return nil, &RateLimitError{
+					RetryAfter:  time.Time{},
+					Attempts:    attempt,
+					HeaderValue: retryHeader,
+				}
+			}
+			if c.Logger != nil {
+				c.Logger.Debug(
+					"parsed Retry-After header",
+					slog.String("retryAfter", retryHeader),
+					slog.String("parser", parserUsed),
+					slog.String("retryAt", retryAt.UTC().Format(time.RFC3339)),
+					slog.String("operationName", operationName),
+				)
+			}
+
+			computedWait := retryAt.Sub(nowFn()).Seconds()
+			waitSeconds := computedWait
+			if waitSeconds < 0 {
+				waitSeconds = 0
+			}
+
+			retryAllowed := (attempt - 1) < maxRetries
+			overCap := computedWait > maxWait.Seconds()
+
+			if c.Logger != nil {
+				c.Logger.Warn(
+					"rate limited on GraphQL request",
+					slog.Int("attempt", attempt),
+					slog.String("endpoint", graphQLURL),
+					slog.String("operationName", operationName),
+					slog.String("retryAt", retryAt.UTC().Format(time.RFC3339)),
+					slog.Float64("computedWaitSeconds", computedWait),
+					slog.Float64("waitSeconds", waitSeconds),
+					slog.Bool("retrying", retryAllowed && !overCap),
+					slog.String("request_id", requestID),
+				)
+			}
+
+			if overCap {
+				return nil, &RateLimitError{
+					RetryAfter:     retryAt,
+					Attempts:       attempt,
+					HeaderValue:    retryHeader,
+					WaitSeconds:    computedWait,
+					MaxWaitSeconds: maxWait.Seconds(),
+				}
+			}
+			if !retryAllowed {
+				return nil, &RateLimitError{
+					RetryAfter:  retryAt,
+					Attempts:    attempt,
+					HeaderValue: retryHeader,
+					WaitSeconds: computedWait,
+				}
+			}
+
+			if waitSeconds > 0 {
+				sleepFn(time.Duration(waitSeconds * float64(time.Second)))
+			}
+			continue
+		}
+
+		if resp.StatusCode >= http.StatusInternalServerError {
+			return nil, &TransportError{
+				StatusCode:  resp.StatusCode,
+				BodySnippet: string(body),
+			}
+		}
+		if resp.StatusCode >= http.StatusBadRequest {
+			return nil, &TransportError{
+				StatusCode:  resp.StatusCode,
+				BodySnippet: string(body),
+			}
+		}
+
+		var result Result
+		if len(body) > 0 {
+			if err := json.Unmarshal(body, &result); err != nil {
+				return nil, &JSONError{Err: err}
+			}
+		}
+
+		if c.Strict && len(result.Errors) > 0 {
+			return nil, &GraphQLOperationError{
+				Errors:      result.Errors,
+				PartialData: result.Data,
+			}
+		}
+
+		return &result, nil
+	}
+}
+
+func extractRequestID(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return ""
+	}
+	extensions, ok := payload["extensions"]
+	if !ok {
+		return ""
+	}
+	extMap, ok := extensions.(map[string]any)
+	if !ok {
+		return ""
+	}
+	for _, key := range []string{"requestId", "request_id", "requestid"} {
+		if val, ok := extMap[key]; ok {
+			if s, ok := val.(string); ok {
+				return s
+			}
+		}
+	}
+	return ""
+}

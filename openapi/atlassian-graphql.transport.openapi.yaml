@@ -1,0 +1,149 @@
+openapi: 3.1.0
+info:
+  title: Atlassian GraphQL Transport
+  version: 0.1.0
+  description: >
+    Transport schema for Atlassian GraphQL endpoint. This captures the HTTP envelope
+    used by the GraphQL POST endpoint and common authentication methods. The GraphQL
+    schema itself is not modeled here and should be generated via introspection.
+
+    Atlassian GraphQL Gateway (AGG) enforces cost-based, per-user rate limiting; schema
+    producers annotate fields or operations with @rateLimit directives. The default budget
+    is 10,000 points per currency per minute. When the budget is exceeded AGG responds
+    with HTTP 429 and a Retry-After timestamp header indicating when the window resets.
+servers:
+  - url: https://api.atlassian.com
+    description: Multi-tenant Atlassian Cloud GraphQL endpoint (/graphql).
+  - url: https://{subdomain}.atlassian.net/gateway/api
+    description: Tenanted site gateway GraphQL endpoint (/graphql).
+    variables:
+      subdomain:
+        description: Atlassian Cloud site or product subdomain (e.g., yourteam).
+        default: yourteam
+  - url: https://{base}
+    description: Custom or non-tenanted Atlassian endpoints.
+    variables:
+      base:
+        description: Base host for the Atlassian GraphQL transport.
+        default: api.bitbucket.org
+paths:
+  /graphql:
+    post:
+      summary: Execute GraphQL operation
+      description: >
+        Submits a GraphQL operation to Atlassian Cloud. The GraphQL schema and typed
+        operations are not included here; this specification only models the transport
+        envelope.
+      security:
+        - bearerAuth: []
+        - basicAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ExperimentalApi'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GraphQLRequest'
+      responses:
+        '200':
+          description: GraphQL response envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphQLResponse'
+        '429':
+          description: >
+            Rate limited by Atlassian GraphQL Gateway. Costs are accumulated per user
+            and per currency; the default budget is 10,000 points per minute. Retry
+            after the indicated timestamp.
+          headers:
+            Retry-After:
+              description: RFC 3339 timestamp when the next request may be attempted.
+              schema:
+                type: string
+                format: date-time
+                example: 2021-05-10T11:00Z
+        default:
+          description: Error responses with HTTP status codes.
+components:
+  parameters:
+    ExperimentalApi:
+      name: X-ExperimentalApi
+      in: header
+      description: Beta/experimental feature opt-in. May be provided multiple times.
+      schema:
+        type: array
+        items:
+          type: string
+      explode: true
+      style: simple
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Email address as username, API token as password.
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: atlassian.xsrf.token
+      description: >
+        Authenticated browser session cookie. Other product-specific cookies may be used.
+  schemas:
+    GraphQLRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+        variables:
+          type: object
+          additionalProperties: true
+        operationName:
+          type: string
+      additionalProperties: false
+    GraphQLResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          nullable: true
+          additionalProperties: true
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/GraphQLError'
+        extensions:
+          type: object
+          additionalProperties: true
+      additionalProperties: true
+    GraphQLError:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+        path:
+          type: array
+          items: {}
+        extensions:
+          type: object
+          additionalProperties: true
+        locations:
+          type: array
+          items:
+            type: object
+            properties:
+              line:
+                type: integer
+              column:
+                type: integer
+            additionalProperties: true
