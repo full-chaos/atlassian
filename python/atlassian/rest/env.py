@@ -4,8 +4,8 @@ import json
 import os
 from typing import Optional
 
-from .auth import BasicApiTokenAuth, CookieAuth, OAuthBearerAuth
-from .oauth_3lo import OAuthRefreshTokenAuth
+from ..auth import BasicApiTokenAuth, CookieAuth, OAuthBearerAuth
+from ..oauth_3lo import OAuthRefreshTokenAuth
 
 
 def auth_from_env():
@@ -70,4 +70,3 @@ def jira_rest_base_url_from_env(cloud_id: str) -> Optional[str]:
     if gql_base:
         return _derive_site_base_url_from_gql_base(gql_base)
     return None
-

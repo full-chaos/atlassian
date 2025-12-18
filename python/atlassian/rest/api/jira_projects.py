@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Iterator, List, Optional, Sequence
 
-from .canonical_models import CanonicalProjectWithOpsgenieTeams, JiraProject
-from .errors import SerializationError
-from .gen import jira_rest_api as api
-from .jira_rest_client import JiraRestClient
-from .jira_rest_env import auth_from_env, jira_rest_base_url_from_env
-from .mappers.jira_rest_projects_mapper import map_rest_project
+from ...canonical_models import CanonicalProjectWithOpsgenieTeams, JiraProject
+from ...errors import SerializationError
+from ..client import JiraRestClient
+from ..env import auth_from_env, jira_rest_base_url_from_env
+from ..gen import jira_api as api
+from ..mappers.jira_projects import map_rest_project
 
 
 def _normalize_project_types(project_types: Sequence[str]) -> List[str]:

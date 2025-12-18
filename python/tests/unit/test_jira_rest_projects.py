@@ -3,9 +3,9 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
-from atlassian_graphql.auth import OAuthBearerAuth
-from atlassian_graphql.jira_rest_client import JiraRestClient
-from atlassian_graphql.jira_rest_projects import iter_projects_via_rest
+from atlassian.auth import OAuthBearerAuth
+from atlassian.rest.api.jira_projects import iter_projects_via_rest
+from atlassian.rest.client import JiraRestClient
 
 
 def test_jira_rest_projects_pagination_and_type_filtering():

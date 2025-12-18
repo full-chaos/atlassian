@@ -1,8 +1,8 @@
 import httpx
 
-from atlassian_graphql.auth import OAuthBearerAuth
-from atlassian_graphql.client import GraphQLClient
-from atlassian_graphql.jira_projects import iter_projects_with_opsgenie_linkable_teams
+from atlassian.auth import OAuthBearerAuth
+from atlassian.graph.api.jira_projects import iter_projects_with_opsgenie_linkable_teams
+from atlassian.graph.client import GraphQLClient
 
 
 def test_beta_headers_sent_multiple_times():

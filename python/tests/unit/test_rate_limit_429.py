@@ -4,9 +4,9 @@ import json
 import httpx
 import pytest
 
-from atlassian_graphql.auth import OAuthBearerAuth
-from atlassian_graphql.client import GraphQLClient
-from atlassian_graphql.jira_projects import iter_projects_with_opsgenie_linkable_teams
+from atlassian.auth import OAuthBearerAuth
+from atlassian.graph.api.jira_projects import iter_projects_with_opsgenie_linkable_teams
+from atlassian.graph.client import GraphQLClient
 
 
 def test_jira_projects_retries_on_429_retry_after_timestamp():
@@ -71,4 +71,3 @@ def test_jira_projects_retries_on_429_retry_after_timestamp():
 
     assert results == []
     assert slept and pytest.approx(slept[0], rel=0.01) == 2.0
-

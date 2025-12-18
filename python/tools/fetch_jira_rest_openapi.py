@@ -12,7 +12,7 @@ def _add_project_to_syspath() -> None:
 
 _add_project_to_syspath()
 
-from atlassian_graphql.jira_rest_openapi_fetcher import (
+from atlassian.rest.openapi_fetcher import (
     DEFAULT_JIRA_REST_OPENAPI_URL,
     fetch_jira_rest_openapi,
 )

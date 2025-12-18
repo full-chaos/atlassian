@@ -2,7 +2,7 @@ from pathlib import Path
 
 import httpx
 
-from atlassian_graphql.jira_rest_openapi_fetcher import fetch_jira_rest_openapi
+from atlassian.rest.openapi_fetcher import fetch_jira_rest_openapi
 
 
 def test_fetch_jira_rest_openapi_writes_pretty_json(tmp_path: Path):
@@ -25,4 +25,3 @@ def test_fetch_jira_rest_openapi_writes_pretty_json(tmp_path: Path):
     text = out_path.read_text(encoding="utf-8")
     assert text.endswith("\n")
     assert '"openapi": "3.0.1"' in text
-

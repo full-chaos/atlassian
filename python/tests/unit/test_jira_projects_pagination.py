@@ -2,10 +2,10 @@ import json
 
 import httpx
 
-from atlassian_graphql.auth import OAuthBearerAuth
-from atlassian_graphql.client import GraphQLClient
-from atlassian_graphql.gen import jira_projects_api as api
-from atlassian_graphql.jira_projects import iter_projects_with_opsgenie_linkable_teams
+from atlassian.auth import OAuthBearerAuth
+from atlassian.graph.api.jira_projects import iter_projects_with_opsgenie_linkable_teams
+from atlassian.graph.client import GraphQLClient
+from atlassian.graph.gen import jira_projects_api as api
 
 
 def _resp(request: httpx.Request, payload: dict, status_code: int = 200, headers: dict | None = None) -> httpx.Response:
@@ -193,4 +193,3 @@ def test_jira_projects_pagination_outer_and_nested():
         "JiraProjectOpsgenieTeamsPage",
         "JiraProjectsPage",
     ]
-

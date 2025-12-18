@@ -185,7 +185,7 @@ def _generate(doc: Dict[str, Any]) -> str:
         "from __future__ import annotations\n\n"
         "from dataclasses import dataclass\n"
         "from typing import Any, Dict, List, Optional\n\n"
-        "from atlassian_graphql.errors import SerializationError\n\n"
+        "from atlassian.errors import SerializationError\n\n"
     )
 
     helpers = """\
@@ -614,7 +614,7 @@ class Args:
 def _parse_args() -> Args:
     repo_root = Path(__file__).resolve().parents[2]
     default_spec = repo_root / "openapi" / "jira-rest.swagger-v3.json"
-    default_out = repo_root / "python" / "atlassian_graphql" / "gen" / "jira_rest_api.py"
+    default_out = repo_root / "python" / "atlassian" / "rest" / "gen" / "jira_api.py"
 
     parser = argparse.ArgumentParser(
         description="Generate minimal Jira REST API models from the Jira Cloud OpenAPI spec."

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from atlassian_graphql import (
+from atlassian import (
     BasicApiTokenAuth,
     CookieAuth,
     JiraRestClient,
@@ -13,9 +13,9 @@ from atlassian_graphql import (
     OAuthRefreshTokenAuth,
     RateLimitError,
 )
-from atlassian_graphql.jira_rest_changelog import iter_issue_changelog_via_rest
-from atlassian_graphql.jira_rest_issues import iter_issues_via_rest
-from atlassian_graphql.jira_rest_worklogs import iter_issue_worklogs_via_rest
+from atlassian.rest.api.jira_changelog import iter_issue_changelog_via_rest
+from atlassian.rest.api.jira_issues import iter_issues_via_rest
+from atlassian.rest.api.jira_worklogs import iter_issue_worklogs_via_rest
 
 
 def _load_dotenv_if_present() -> None:
@@ -133,7 +133,7 @@ def test_live_jira_issues_rest_smoke():
             "(set ATLASSIAN_JIRA_BASE_URL or ATLASSIAN_GQL_BASE_URL for tenanted auth)"
         )
 
-    logger = logging.getLogger("atlassian_graphql.integration")
+    logger = logging.getLogger("atlassian.integration")
     client = JiraRestClient(base_url, auth=auth, timeout_seconds=30.0, logger=logger, max_retries_429=1)
     try:
         it = iter_issues_via_rest(client, cloud_id=cloud_id, jql=jql, page_size=1)
@@ -176,7 +176,7 @@ def test_live_jira_issue_history_rest_smoke():
             "(set ATLASSIAN_JIRA_BASE_URL or ATLASSIAN_GQL_BASE_URL for tenanted auth)"
         )
 
-    logger = logging.getLogger("atlassian_graphql.integration")
+    logger = logging.getLogger("atlassian.integration")
     client = JiraRestClient(base_url, auth=auth, timeout_seconds=30.0, logger=logger, max_retries_429=1)
     try:
         try:
@@ -186,4 +186,3 @@ def test_live_jira_issue_history_rest_smoke():
             pytest.skip(f"Rate limited during integration; {exc}")
     finally:
         client.close()
-

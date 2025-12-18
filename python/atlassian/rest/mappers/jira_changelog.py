@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from atlassian_graphql.canonical_models import JiraChangelogEvent, JiraChangelogItem, JiraUser
-from atlassian_graphql.gen.jira_rest_api import Changelog, ChangeDetails, UserDetails
+from ...canonical_models import JiraChangelogEvent, JiraChangelogItem, JiraUser
+from ..gen.jira_api import Changelog, ChangeDetails, UserDetails
 
 
 def _require_non_empty(value: Optional[str], path: str) -> str:
@@ -64,4 +64,3 @@ def map_changelog_event(*, issue_key: str, changelog: Changelog) -> JiraChangelo
         items=items,
         author=_map_user(changelog.author, "changelog.author"),
     )
-

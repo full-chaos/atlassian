@@ -86,4 +86,3 @@ class OpsgenieTeamRef:
 class CanonicalProjectWithOpsgenieTeams:
     project: JiraProject
     opsgenie_teams: List[OpsgenieTeamRef] = field(default_factory=list)
-

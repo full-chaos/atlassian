@@ -1,7 +1,7 @@
 import httpx
 
-from atlassian_graphql.auth import BasicApiTokenAuth, CookieAuth, OAuthBearerAuth
-from atlassian_graphql.client import GraphQLClient
+from atlassian.auth import BasicApiTokenAuth, CookieAuth, OAuthBearerAuth
+from atlassian.graph.client import GraphQLClient
 
 
 def test_bearer_auth_header():

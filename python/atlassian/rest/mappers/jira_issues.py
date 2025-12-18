@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from atlassian_graphql.canonical_models import JiraIssue, JiraUser
-from atlassian_graphql.gen.jira_rest_api import IssueBean
+from ...canonical_models import JiraIssue, JiraUser
+from ..gen.jira_api import IssueBean
 
 
 def _expect_dict(obj: Any, path: str) -> Dict[str, Any]:
@@ -109,4 +109,3 @@ def map_issue(*, cloud_id: str, issue: IssueBean) -> JiraIssue:
         story_points=None,
         sprint_ids=[],
     )
-

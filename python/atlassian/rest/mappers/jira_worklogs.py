@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from atlassian_graphql.canonical_models import JiraUser, JiraWorklog
-from atlassian_graphql.gen.jira_rest_api import UserDetails, Worklog
+from ...canonical_models import JiraUser, JiraWorklog
+from ..gen.jira_api import UserDetails, Worklog
 
 
 def _require_non_empty(value: Optional[str], path: str) -> str:
@@ -50,4 +50,3 @@ def map_worklog(*, issue_key: str, worklog: Worklog) -> JiraWorklog:
         updated_at=updated_at,
         author=_map_user(worklog.author, "worklog.author"),
     )
-

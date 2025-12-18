@@ -15,13 +15,13 @@ def _add_project_to_syspath() -> None:
 
 _add_project_to_syspath()
 
-from atlassian_graphql.auth import (  # noqa: E402
+from atlassian.auth import (  # noqa: E402
     BasicApiTokenAuth,
     CookieAuth,
     OAuthBearerAuth,
 )
-from atlassian_graphql.oauth_3lo import OAuthRefreshTokenAuth  # noqa: E402
-from atlassian_graphql.schema_fetcher import fetch_schema_introspection  # noqa: E402
+from atlassian.oauth_3lo import OAuthRefreshTokenAuth  # noqa: E402
+from atlassian.graph.schema_fetcher import fetch_schema_introspection  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -505,7 +505,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
-from atlassian_graphql.errors import SerializationError
+from atlassian.errors import SerializationError
 
 PAGEINFO_HAS_END_CURSOR = {str(cfg.pageinfo_has_end_cursor)}
 PROJECTS_EDGE_HAS_CURSOR = {str(cfg.projects_edge_has_cursor)}
@@ -759,7 +759,7 @@ def main(argv: Sequence[str]) -> int:
 
     schema = _load_introspection(schema_path)
     cfg = _discover_config(schema)
-    output_py = repo_root / "python" / "atlassian_graphql" / "gen" / "jira_projects_api.py"
+    output_py = repo_root / "python" / "atlassian" / "graph" / "gen" / "jira_projects_api.py"
     output_py.parent.mkdir(parents=True, exist_ok=True)
     output_py.write_text(_render_python(cfg), encoding="utf-8")
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from atlassian_graphql import (
+from atlassian import (
     BasicApiTokenAuth,
     CookieAuth,
     GraphQLOperationError,
@@ -13,7 +13,7 @@ from atlassian_graphql import (
     OAuthBearerAuth,
     OAuthRefreshTokenAuth,
 )
-from atlassian_graphql.jira_projects import iter_projects_with_opsgenie_linkable_teams
+from atlassian.graph.api.jira_projects import iter_projects_with_opsgenie_linkable_teams
 
 
 def _load_dotenv_if_present() -> None:
@@ -106,7 +106,7 @@ def test_live_jira_projects_smoke():
             "ATLASSIAN_CLOUD_ID (or ATLASSIAN_JIRA_CLOUD_ID) is required when running Jira projects integration tests"
         )
 
-    logger = logging.getLogger("atlassian_graphql.integration")
+    logger = logging.getLogger("atlassian.integration")
     client = GraphQLClient(base_url, auth=auth, timeout_seconds=30.0, logger=logger, max_retries_429=1)
 
     it = iter_projects_with_opsgenie_linkable_teams(

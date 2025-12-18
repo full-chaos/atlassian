@@ -1,9 +1,9 @@
 import httpx
 import pytest
 
-from atlassian_graphql.auth import OAuthBearerAuth
-from atlassian_graphql.jira_rest_client import JiraRestClient
-from atlassian_graphql.jira_rest_issues import iter_issues_via_rest
+from atlassian.auth import OAuthBearerAuth
+from atlassian.rest.api.jira_issues import iter_issues_via_rest
+from atlassian.rest.client import JiraRestClient
 
 
 def test_jira_rest_issues_pagination_and_mapping():
@@ -114,4 +114,3 @@ def test_iter_issues_via_rest_requires_cloud_id():
         )
         with pytest.raises(ValueError):
             list(iter_issues_via_rest(client, cloud_id=" ", jql="project=A", page_size=1))
-

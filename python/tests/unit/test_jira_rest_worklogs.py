@@ -1,8 +1,8 @@
 import httpx
 
-from atlassian_graphql.auth import OAuthBearerAuth
-from atlassian_graphql.jira_rest_client import JiraRestClient
-from atlassian_graphql.jira_rest_worklogs import iter_issue_worklogs_via_rest
+from atlassian.auth import OAuthBearerAuth
+from atlassian.rest.api.jira_worklogs import iter_issue_worklogs_via_rest
+from atlassian.rest.client import JiraRestClient
 
 
 def test_jira_rest_worklogs_pagination_and_mapping():
@@ -65,4 +65,3 @@ def test_jira_rest_worklogs_pagination_and_mapping():
     assert worklogs[0].time_spent_seconds == 60
     assert worklogs[0].author and worklogs[0].author.account_id == "u1"
     assert worklogs[1].author is None
-

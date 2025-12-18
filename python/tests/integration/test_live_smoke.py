@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from atlassian_graphql import (
+from atlassian import (
     BasicApiTokenAuth,
     CookieAuth,
     GraphQLClient,
@@ -87,7 +87,7 @@ def test_live_smoke(caplog):
     if not base_url or auth is None:
         pytest.skip("Integration credentials not provided")
 
-    logger = logging.getLogger("atlassian_graphql.integration")
+    logger = logging.getLogger("atlassian.integration")
     client = GraphQLClient(
         base_url,
         auth=auth,

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Iterator, Optional, Sequence
 
-from .canonical_models import JiraIssue
-from .errors import SerializationError
-from .gen import jira_rest_api as api
-from .jira_rest_client import JiraRestClient
-from .jira_rest_env import auth_from_env, jira_rest_base_url_from_env
-from .mappers.jira_rest_issues_mapper import map_issue
+from ...canonical_models import JiraIssue
+from ...errors import SerializationError
+from ..client import JiraRestClient
+from ..env import auth_from_env, jira_rest_base_url_from_env
+from ..gen import jira_api as api
+from ..mappers.jira_issues import map_issue
 
 
 _DEFAULT_SEARCH_FIELDS = (
@@ -117,4 +117,3 @@ def list_issues_via_rest(
             page_size=page_size,
             fields=fields,
         )
-

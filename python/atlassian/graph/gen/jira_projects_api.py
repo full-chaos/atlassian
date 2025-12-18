@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
-from atlassian_graphql.errors import SerializationError
+from atlassian.errors import SerializationError
 
 PAGEINFO_HAS_END_CURSOR = True
 PROJECTS_EDGE_HAS_CURSOR = True
@@ -280,4 +280,3 @@ def parse_project_opsgenie_teams(data: Any) -> OpsgenieTeamsConnection:
     if inner is None:
         raise SerializationError("Missing data.jira.project.opsgenieTeams")
     return OpsgenieTeamsConnection.from_dict(inner, "data.jira.project.opsgenieTeams")
-

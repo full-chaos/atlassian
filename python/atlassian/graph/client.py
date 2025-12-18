@@ -7,17 +7,17 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import httpx
 
-from .auth import AuthProvider
-from .errors import (
+from ..auth import AuthProvider
+from ..errors import (
     GraphQLOperationError,
     LocalRateLimitError,
     RateLimitError,
     SerializationError,
     TransportError,
 )
-from .logging import get_logger, sanitize_headers
-from .models import GraphQLErrorItem, GraphQLResult, parse_error_items
-from .retry import parse_retry_after
+from ..logging import get_logger, sanitize_headers
+from ..models import GraphQLErrorItem, GraphQLResult, parse_error_items
+from ..retry import parse_retry_after
 from .throttle import TokenBucket
 
 

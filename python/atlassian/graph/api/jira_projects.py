@@ -4,13 +4,13 @@ import json
 import os
 from typing import Iterator, List, Optional, Sequence
 
-from .auth import BasicApiTokenAuth, CookieAuth, OAuthBearerAuth
-from .canonical_models import CanonicalProjectWithOpsgenieTeams
-from .client import GraphQLClient
-from .errors import GraphQLOperationError, SerializationError
-from .gen import jira_projects_api as api
-from .mappers.jira_projects_mapper import map_project_with_opsgenie_teams
-from .oauth_3lo import OAuthRefreshTokenAuth
+from ...auth import BasicApiTokenAuth, CookieAuth, OAuthBearerAuth
+from ...canonical_models import CanonicalProjectWithOpsgenieTeams
+from ...errors import GraphQLOperationError, SerializationError
+from ...oauth_3lo import OAuthRefreshTokenAuth
+from ..client import GraphQLClient
+from ..gen import jira_projects_api as api
+from ..mappers.jira_projects import map_project_with_opsgenie_teams
 
 
 def _normalize_project_types(project_types: Sequence[str]) -> List[str]:

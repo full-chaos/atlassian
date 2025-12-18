@@ -13,13 +13,13 @@ def _add_project_to_syspath() -> None:
 
 _add_project_to_syspath()
 
-from atlassian_graphql.auth import (  # noqa: E402
+from atlassian.auth import (  # noqa: E402
     BasicApiTokenAuth,
     CookieAuth,
     OAuthBearerAuth,
 )
-from atlassian_graphql.oauth_3lo import OAuthRefreshTokenAuth  # noqa: E402
-from atlassian_graphql.schema_fetcher import fetch_schema_introspection  # noqa: E402
+from atlassian.oauth_3lo import OAuthRefreshTokenAuth  # noqa: E402
+from atlassian.graph.schema_fetcher import fetch_schema_introspection  # noqa: E402
 
 
 def _auth_from_env():

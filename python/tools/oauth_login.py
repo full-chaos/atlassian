@@ -15,7 +15,7 @@ def _add_project_to_syspath() -> None:
 
 _add_project_to_syspath()
 
-from atlassian_graphql.oauth_3lo import (  # noqa: E402
+from atlassian.oauth_3lo import (  # noqa: E402
     build_authorize_url,
     exchange_authorization_code,
     fetch_accessible_resources,

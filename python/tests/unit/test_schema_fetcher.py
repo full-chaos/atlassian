@@ -2,8 +2,8 @@ import json
 
 import httpx
 
-from atlassian_graphql.auth import OAuthBearerAuth
-from atlassian_graphql.schema_fetcher import fetch_schema_introspection
+from atlassian.auth import OAuthBearerAuth
+from atlassian.graph.schema_fetcher import fetch_schema_introspection
 
 
 def test_schema_fetcher_writes_introspection_json(tmp_path):

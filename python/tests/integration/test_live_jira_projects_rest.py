@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from atlassian_graphql import (
+from atlassian import (
     BasicApiTokenAuth,
     CookieAuth,
     JiraRestClient,
@@ -13,7 +13,7 @@ from atlassian_graphql import (
     OAuthRefreshTokenAuth,
     RateLimitError,
 )
-from atlassian_graphql.jira_rest_projects import iter_projects_via_rest
+from atlassian.rest.api.jira_projects import iter_projects_via_rest
 
 
 def _load_dotenv_if_present() -> None:
@@ -119,7 +119,7 @@ def test_live_jira_projects_rest_smoke():
             "(set ATLASSIAN_JIRA_BASE_URL or ATLASSIAN_GQL_BASE_URL for tenanted auth)"
         )
 
-    logger = logging.getLogger("atlassian_graphql.integration")
+    logger = logging.getLogger("atlassian.integration")
     client = JiraRestClient(base_url, auth=auth, timeout_seconds=30.0, logger=logger, max_retries_429=1)
     try:
         it = iter_projects_via_rest(
@@ -140,4 +140,3 @@ def test_live_jira_projects_rest_smoke():
             assert first.opsgenie_teams == []
     finally:
         client.close()
-

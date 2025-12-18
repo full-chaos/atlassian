@@ -7,10 +7,10 @@ from typing import Callable, Dict, Optional, Tuple, Union
 
 import httpx
 
-from .auth import AuthProvider
-from .errors import RateLimitError, SerializationError, TransportError
-from .logging import get_logger, sanitize_headers
-from .retry import parse_retry_after
+from ..auth import AuthProvider
+from ..errors import RateLimitError, SerializationError, TransportError
+from ..logging import get_logger, sanitize_headers
+from ..retry import parse_retry_after
 
 
 class JiraRestClient:
@@ -208,4 +208,3 @@ class JiraRestClient:
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
-

@@ -3,15 +3,15 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
-from atlassian_graphql.client import GraphQLClient
-from atlassian_graphql.auth import OAuthBearerAuth
-from atlassian_graphql.errors import (
+from atlassian.auth import OAuthBearerAuth
+from atlassian.errors import (
     GraphQLOperationError,
     LocalRateLimitError,
     RateLimitError,
     SerializationError,
     TransportError,
 )
+from atlassian.graph.client import GraphQLClient
 
 
 def test_execute_returns_data():

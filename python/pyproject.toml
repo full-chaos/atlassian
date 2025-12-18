@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "atlassian-graphql-client"
+name = "atlassian-client"
 version = "0.1.0"
 description = " Atlassian GraphQL client for Python"
 authors = [{ name = "Chris George" }]

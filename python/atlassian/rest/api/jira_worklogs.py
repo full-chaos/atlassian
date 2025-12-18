@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import Iterator
 
-from .canonical_models import JiraWorklog
-from .errors import SerializationError
-from .gen import jira_rest_api as api
-from .jira_rest_client import JiraRestClient
-from .mappers.jira_rest_worklogs_mapper import map_worklog
+from ...canonical_models import JiraWorklog
+from ...errors import SerializationError
+from ..client import JiraRestClient
+from ..gen import jira_api as api
+from ..mappers.jira_worklogs import map_worklog
 
 
 def iter_issue_worklogs_via_rest(
@@ -50,4 +50,3 @@ def iter_issue_worklogs_via_rest(
         if len(worklogs) == 0:
             break
         start_at += len(worklogs)
-

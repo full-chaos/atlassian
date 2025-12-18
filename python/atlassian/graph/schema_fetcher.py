@@ -7,10 +7,10 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 import httpx
 
-from .auth import AuthProvider
+from ..auth import AuthProvider
+from ..errors import SerializationError
+from ..models import GraphQLErrorItem
 from .client import GraphQLClient
-from .errors import SerializationError
-from .models import GraphQLErrorItem
 
 
 _INTROSPECTION_QUERY = """

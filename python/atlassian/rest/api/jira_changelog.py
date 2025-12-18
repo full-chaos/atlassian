@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import Iterator
 
-from .canonical_models import JiraChangelogEvent
-from .errors import SerializationError
-from .gen import jira_rest_api as api
-from .jira_rest_client import JiraRestClient
-from .mappers.jira_rest_changelog_mapper import map_changelog_event
+from ...canonical_models import JiraChangelogEvent
+from ...errors import SerializationError
+from ..client import JiraRestClient
+from ..gen import jira_api as api
+from ..mappers.jira_changelog import map_changelog_event
 
 
 def iter_issue_changelog_via_rest(
@@ -58,4 +58,3 @@ def iter_issue_changelog_via_rest(
                 )
             break
         start_at += len(values)
-

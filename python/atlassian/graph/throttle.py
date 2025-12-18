@@ -4,7 +4,7 @@ import threading
 from datetime import datetime, timedelta
 from typing import Callable
 
-from .errors import LocalRateLimitError
+from ..errors import LocalRateLimitError
 
 
 class TokenBucket:

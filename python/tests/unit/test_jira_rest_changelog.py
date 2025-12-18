@@ -1,8 +1,8 @@
 import httpx
 
-from atlassian_graphql.auth import OAuthBearerAuth
-from atlassian_graphql.jira_rest_changelog import iter_issue_changelog_via_rest
-from atlassian_graphql.jira_rest_client import JiraRestClient
+from atlassian.auth import OAuthBearerAuth
+from atlassian.rest.api.jira_changelog import iter_issue_changelog_via_rest
+from atlassian.rest.client import JiraRestClient
 
 
 def test_jira_rest_changelog_pagination_and_mapping():
@@ -65,4 +65,3 @@ def test_jira_rest_changelog_pagination_and_mapping():
     assert events[0].author and events[0].author.account_id == "u1"
     assert events[0].items[0].field == "status"
     assert events[1].author is None
-

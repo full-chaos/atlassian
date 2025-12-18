@@ -2,8 +2,8 @@ import json
 
 import httpx
 
-from atlassian_graphql.client import GraphQLClient
-from atlassian_graphql.oauth_3lo import OAuthRefreshTokenAuth
+from atlassian.graph.client import GraphQLClient
+from atlassian.oauth_3lo import OAuthRefreshTokenAuth
 
 
 def test_oauth_refresh_token_auth_applies_and_caches_token():
@@ -52,4 +52,3 @@ def test_oauth_refresh_token_auth_applies_and_caches_token():
     assert calls["token"] == 1
     assert calls["graphql"] == 2
     assert calls["auth"] == ["Bearer access-1", "Bearer access-1"]
-

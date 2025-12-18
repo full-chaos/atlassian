@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Iterable, List
 
-from atlassian_graphql.canonical_models import (
+from ...canonical_models import (
     CanonicalProjectWithOpsgenieTeams,
     JiraProject,
     OpsgenieTeamRef,
 )
-from atlassian_graphql.gen.jira_projects_api import JiraProjectNode, OpsgenieTeamNode
+from ..gen.jira_projects_api import JiraProjectNode, OpsgenieTeamNode
 
 
 def map_project_with_opsgenie_teams(
@@ -47,4 +47,3 @@ def map_project_with_opsgenie_teams(
         project=JiraProject(cloud_id=cloud_id_clean, key=project_key, name=project_name),
         opsgenie_teams=teams,
     )
-

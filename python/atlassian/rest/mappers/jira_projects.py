@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from atlassian_graphql.canonical_models import JiraProject
-from atlassian_graphql.gen.jira_rest_api import Project as RestProject
+from ...canonical_models import JiraProject
+from ..gen.jira_api import Project as RestProject
 
 
 def _normalize_project_type(value: str) -> str:

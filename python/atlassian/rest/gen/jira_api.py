@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from atlassian_graphql.errors import SerializationError
+from atlassian.errors import SerializationError
 
 def _expect_dict(obj: Any, path: str) -> Dict[str, Any]:
     if not isinstance(obj, dict):

@@ -1,7 +1,7 @@
 import pytest
 
-from atlassian_graphql.gen.jira_projects_api import JiraProjectNode, OpsgenieTeamNode
-from atlassian_graphql.mappers.jira_projects_mapper import map_project_with_opsgenie_teams
+from atlassian.graph.gen.jira_projects_api import JiraProjectNode, OpsgenieTeamNode
+from atlassian.graph.mappers.jira_projects import map_project_with_opsgenie_teams
 
 
 def test_project_mapper_trims_and_dedups_teams():
@@ -27,4 +27,3 @@ def test_project_mapper_requires_fields():
     project = JiraProjectNode(id="p", key="", name="n", opsgenie_teams=None)  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="project.key"):
         map_project_with_opsgenie_teams(cloud_id="c", project=project, opsgenie_teams=[])
-

@@ -24,7 +24,7 @@ Jira Cloud publishes a Swagger/OpenAPI spec for REST v3. You can fetch it into t
 
 - `make jira-rest-openapi` (writes `openapi/jira-rest.swagger-v3.json`)
 - Generate minimal, analytics-focused REST models from the swagger JSON:
-  - `make jira-rest-gen` (writes `python/atlassian_graphql/gen/jira_rest_api.py` and `go/graphql/gen/jira_rest_api.go`)
+  - `make jira-rest-gen` (writes `python/atlassian/rest/gen/jira_api.py` and `go/graphql/gen/jira_rest_api.go`)
 
 ## Endpoints
 
@@ -56,7 +56,7 @@ For Jira project listing, the OAuth scope requirement surfaced by AGG appears to
 ## Python usage
 
 ```python
-from atlassian_graphql import (
+from atlassian import (
     GraphQLClient,
     OAuthBearerAuth,
     OAuthRefreshTokenAuth,
@@ -180,9 +180,9 @@ projects, err = rest.ListProjectsViaREST(context.Background(), "YOUR_CLOUD_ID", 
 
 ## Canonical vs API models
 
-- API models (`python/atlassian_graphql/gen/`, `go/graphql/gen/`) are generated from AGG schema introspection and match the GraphQL response shape for a specific operation.
-- Canonical models (`python/atlassian_graphql/canonical_models.py`, `go/graphql/canonical/models.go`) are stable, versioned analytics schemas (source-of-truth: `openapi/jira-developer-health.canonical.openapi.yaml`).
-- Mappers live in `python/atlassian_graphql/mappers/` and `go/graphql/mappers/`.
+- API models (`python/atlassian/graph/gen/`, `python/atlassian/rest/gen/`, `go/graphql/gen/`) are generated from live schemas and match the API response shape for specific operations/endpoints.
+- Canonical models (`python/atlassian/canonical_models.py`, `go/graphql/canonical/models.go`) are stable, versioned analytics schemas (source-of-truth: `openapi/jira-developer-health.canonical.openapi.yaml`).
+- Mappers live in `python/atlassian/graph/mappers/`, `python/atlassian/rest/mappers/`, and `go/graphql/mappers/`.
 
 ## Tests
 

@@ -6,7 +6,7 @@ from typing import Optional, Union
 
 import httpx
 
-from .errors import SerializationError, TransportError
+from ..errors import SerializationError, TransportError
 
 
 DEFAULT_JIRA_REST_OPENAPI_URL = "https://dac-static.atlassian.com/cloud/jira/platform/swagger-v3.v3.json"
@@ -56,4 +56,3 @@ def fetch_jira_rest_openapi(
         return out_path
     finally:
         response.close()
-
