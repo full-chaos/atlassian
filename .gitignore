@@ -1,3 +1,5 @@
+# Cleaned .gitignore - duplicate entries removed
+
 # OS / editor
 .DS_Store
 .vscode/
@@ -12,7 +14,16 @@ __pycache__/
 
 # Go
 go/.gocache/
+go/.gopath/
+go/.cache/
 bin/
+
+# Generated GraphQL schema
+graphql/schema.introspection.json
+graphql/schema.sdl.graphql
+
+# Generated Jira REST OpenAPI
+openapi/jira-rest.swagger-v3.json
 
 # Env / tooling
 .python-version
@@ -44,8 +55,6 @@ go.work
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
 *$py.class
 
 # C extensions
@@ -84,7 +93,6 @@ pip-delete-this-directory.txt
 htmlcov/
 .tox/
 .nox/
-.coverage
 .coverage.*
 .cache
 nosetests.xml
@@ -92,7 +100,6 @@ coverage.xml
 *.cover
 *.py,cover
 .hypothesis/
-.pytest_cache/
 cover/
 
 # Translations
@@ -165,7 +172,6 @@ celerybeat.pid
 
 # Environments
 .env
-.venv
 env/
 venv/
 ENV/

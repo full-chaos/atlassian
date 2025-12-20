@@ -13,24 +13,33 @@ import (
 	"testing"
 	"time"
 
-	"atlassian-graphql/graphql"
+	"atlassian/atlassian"
+	"atlassian/atlassian/graph"
 	"log/slog"
 )
 
 func TestLiveSmoke(t *testing.T) {
+	loadDotEnvIfPresent(t)
+
 	baseURL := os.Getenv("ATLASSIAN_GQL_BASE_URL")
-	if baseURL == "" {
-		t.Skip("ATLASSIAN_GQL_BASE_URL not set")
+	if baseURL == "" && strings.TrimSpace(os.Getenv("ATLASSIAN_OAUTH_ACCESS_TOKEN")) != "" {
+		baseURL = "https://api.atlassian.com"
+	}
+	if baseURL == "" && strings.TrimSpace(os.Getenv("ATLASSIAN_OAUTH_REFRESH_TOKEN")) != "" {
+		baseURL = "https://api.atlassian.com"
 	}
 	auth := buildAuth(t)
 	if auth == nil {
 		t.Skip("no credentials available")
 	}
+	if baseURL == "" {
+		t.Skip("ATLASSIAN_GQL_BASE_URL not set (required for non-OAuth auth modes)")
+	}
 
 	buf := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	client := graphql.Client{
+	client := graph.Client{
 		BaseURL:       baseURL,
 		Auth:          auth,
 		Strict:        false,
@@ -48,7 +57,7 @@ func TestLiveSmoke(t *testing.T) {
 		1,
 	)
 	if err != nil {
-		if rlErr, ok := err.(*graphql.RateLimitError); ok {
+		if rlErr, ok := err.(*atlassian.RateLimitError); ok {
 			if !strings.Contains(buf.String(), "rate limited") {
 				t.Fatalf("rate limit encountered without warning log: %v", rlErr)
 			}
@@ -66,19 +75,33 @@ func TestLiveSmoke(t *testing.T) {
 	}
 }
 
-func buildAuth(t *testing.T) graphql.AuthProvider {
+func buildAuth(t *testing.T) atlassian.AuthProvider {
 	token := os.Getenv("ATLASSIAN_OAUTH_ACCESS_TOKEN")
+	refreshToken := os.Getenv("ATLASSIAN_OAUTH_REFRESH_TOKEN")
+	clientID := os.Getenv("ATLASSIAN_CLIENT_ID")
 	email := os.Getenv("ATLASSIAN_EMAIL")
 	apiToken := os.Getenv("ATLASSIAN_API_TOKEN")
 	cookiesJSON := os.Getenv("ATLASSIAN_COOKIES_JSON")
+	clientSecret := os.Getenv("ATLASSIAN_CLIENT_SECRET")
 
+	if strings.TrimSpace(refreshToken) != "" && strings.TrimSpace(clientID) != "" && strings.TrimSpace(clientSecret) != "" {
+		return &atlassian.OAuthRefreshTokenAuth{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RefreshToken: refreshToken,
+			Timeout:      30 * time.Second,
+		}
+	}
 	if token != "" {
-		return graphql.BearerAuth{
+		if clientSecret != "" && strings.TrimSpace(token) == strings.TrimSpace(clientSecret) {
+			t.Fatal("ATLASSIAN_OAUTH_ACCESS_TOKEN appears to be set to ATLASSIAN_CLIENT_SECRET; set an OAuth access token (not the client secret)")
+		}
+		return atlassian.BearerAuth{
 			TokenGetter: func() (string, error) { return token, nil },
 		}
 	}
 	if email != "" && apiToken != "" {
-		return graphql.BasicAPITokenAuth{
+		return atlassian.BasicAPITokenAuth{
 			Email: email,
 			Token: apiToken,
 		}
@@ -90,7 +113,7 @@ func buildAuth(t *testing.T) graphql.AuthProvider {
 			for k, v := range cookies {
 				httpCookies = append(httpCookies, &http.Cookie{Name: k, Value: v})
 			}
-			return graphql.CookieAuth{Cookies: httpCookies}
+			return atlassian.CookieAuth{Cookies: httpCookies}
 		}
 	}
 

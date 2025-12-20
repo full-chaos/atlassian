@@ -7,16 +7,39 @@ import (
 	"strings"
 	"testing"
 
-	"atlassian-graphql/graphql"
+	"atlassian/atlassian"
+	"atlassian/atlassian/graph"
 )
 
 func TestBearerAuthHeaderSet(t *testing.T) {
 	var authHeader string
 
-	client := graphql.Client{
+	client := graph.Client{
 		BaseURL: "http://example",
-		Auth: graphql.BearerAuth{
+		Auth: atlassian.BearerAuth{
 			TokenGetter: func() (string, error) { return "token123", nil },
+		},
+		HTTPClient: newHTTPClient(func(req *http.Request) *http.Response {
+			authHeader = req.Header.Get("Authorization")
+			return jsonResponse(req, http.StatusOK, `{"data":{}}`, nil)
+		}),
+	}
+	_, err := client.Execute(context.Background(), "query { ok }", nil, "", nil, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if authHeader != "Bearer token123" {
+		t.Fatalf("unexpected auth header %q", authHeader)
+	}
+}
+
+func TestBearerAuthStripsBearerPrefix(t *testing.T) {
+	var authHeader string
+
+	client := graph.Client{
+		BaseURL: "http://example",
+		Auth: atlassian.BearerAuth{
+			TokenGetter: func() (string, error) { return "Bearer token123", nil },
 		},
 		HTTPClient: newHTTPClient(func(req *http.Request) *http.Response {
 			authHeader = req.Header.Get("Authorization")
@@ -35,9 +58,9 @@ func TestBearerAuthHeaderSet(t *testing.T) {
 func TestBasicAuthHeader(t *testing.T) {
 	var authHeader string
 
-	client := graphql.Client{
+	client := graph.Client{
 		BaseURL: "http://example",
-		Auth: graphql.BasicAPITokenAuth{
+		Auth: atlassian.BasicAPITokenAuth{
 			Email: "user@example.com",
 			Token: "apitoken",
 		},
@@ -62,9 +85,9 @@ func TestBasicAuthHeader(t *testing.T) {
 func TestCookieAuthSetsCookies(t *testing.T) {
 	var cookieHeader string
 
-	client := graphql.Client{
+	client := graph.Client{
 		BaseURL: "http://example",
-		Auth: graphql.CookieAuth{
+		Auth: atlassian.CookieAuth{
 			Cookies: []*http.Cookie{
 				{Name: "session", Value: "abc"},
 				{Name: "xsrf", Value: "123"},

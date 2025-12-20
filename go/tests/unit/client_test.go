@@ -5,11 +5,12 @@ import (
 	"net/http"
 	"testing"
 
-	"atlassian-graphql/graphql"
+	"atlassian/atlassian"
+	"atlassian/atlassian/graph"
 )
 
 func TestExecuteReturnsData(t *testing.T) {
-	client := graphql.Client{
+	client := graph.Client{
 		BaseURL: "http://example",
 		Auth:    noAuth{},
 		HTTPClient: newHTTPClient(func(req *http.Request) *http.Response {
@@ -26,7 +27,7 @@ func TestExecuteReturnsData(t *testing.T) {
 }
 
 func TestStrictModeReturnsError(t *testing.T) {
-	client := graphql.Client{
+	client := graph.Client{
 		BaseURL: "http://example",
 		Auth:    noAuth{},
 		Strict:  true,
@@ -38,13 +39,13 @@ func TestStrictModeReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if _, ok := err.(*graphql.GraphQLOperationError); !ok {
+	if _, ok := err.(*atlassian.GraphQLOperationError); !ok {
 		t.Fatalf("expected GraphQLOperationError, got %T", err)
 	}
 }
 
 func TestInvalidJSONReturnsError(t *testing.T) {
-	client := graphql.Client{
+	client := graph.Client{
 		BaseURL: "http://example",
 		Auth:    noAuth{},
 		HTTPClient: newHTTPClient(func(req *http.Request) *http.Response {
@@ -55,7 +56,7 @@ func TestInvalidJSONReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if _, ok := err.(*graphql.JSONError); !ok {
+	if _, ok := err.(*atlassian.JSONError); !ok {
 		t.Fatalf("expected JSONError, got %T", err)
 	}
 }

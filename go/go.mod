@@ -1,3 +1,3 @@
-module atlassian-graphql
+module atlassian
 
 go 1.21

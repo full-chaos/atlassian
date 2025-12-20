@@ -1,0 +1,250 @@
+openapi: 3.1.0
+info:
+  title: Jira Developer Health (Canonical)
+  version: 0.1.0
+  description: >
+    Canonical, API-agnostic schemas used for developer health and analytics pipelines.
+    These objects are intentionally stable and versioned independently of Atlassian
+    GraphQL Gateway (AGG) or Jira REST response shapes.
+components:
+  schemas:
+    JiraUser:
+      type: object
+      required:
+        - accountId
+        - displayName
+      properties:
+        accountId:
+          type: string
+          minLength: 1
+        displayName:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+          nullable: true
+      additionalProperties: false
+
+    JiraProject:
+      type: object
+      required:
+        - cloudId
+        - key
+        - name
+      properties:
+        cloudId:
+          type: string
+          minLength: 1
+        key:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          nullable: true
+      additionalProperties: false
+
+    JiraSprint:
+      type: object
+      required:
+        - id
+        - name
+        - state
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        state:
+          type: string
+          minLength: 1
+        startAt:
+          type: string
+          format: date-time
+          nullable: true
+        endAt:
+          type: string
+          format: date-time
+          nullable: true
+        completeAt:
+          type: string
+          format: date-time
+          nullable: true
+      additionalProperties: false
+
+    JiraIssue:
+      type: object
+      required:
+        - cloudId
+        - key
+        - projectKey
+        - issueType
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        cloudId:
+          type: string
+          minLength: 1
+        key:
+          type: string
+          minLength: 1
+        projectKey:
+          type: string
+          minLength: 1
+        issueType:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          minLength: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        assignee:
+          $ref: '#/components/schemas/JiraUser'
+          nullable: true
+        reporter:
+          $ref: '#/components/schemas/JiraUser'
+          nullable: true
+        labels:
+          type: array
+          items:
+            type: string
+          default: []
+        components:
+          type: array
+          items:
+            type: string
+          default: []
+        storyPoints:
+          type: number
+          nullable: true
+        sprintIds:
+          type: array
+          items:
+            type: string
+          default: []
+      additionalProperties: false
+
+    JiraChangelogItem:
+      type: object
+      required:
+        - field
+      properties:
+        field:
+          type: string
+          minLength: 1
+        from:
+          type: string
+          nullable: true
+        to:
+          type: string
+          nullable: true
+        fromString:
+          type: string
+          nullable: true
+        toString:
+          type: string
+          nullable: true
+      additionalProperties: false
+
+    JiraChangelogEvent:
+      type: object
+      required:
+        - issueKey
+        - eventId
+        - createdAt
+        - items
+      properties:
+        issueKey:
+          type: string
+          minLength: 1
+        eventId:
+          type: string
+          minLength: 1
+        author:
+          $ref: '#/components/schemas/JiraUser'
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/JiraChangelogItem'
+      additionalProperties: false
+
+    JiraWorklog:
+      type: object
+      required:
+        - issueKey
+        - worklogId
+        - startedAt
+        - timeSpentSeconds
+        - createdAt
+        - updatedAt
+      properties:
+        issueKey:
+          type: string
+          minLength: 1
+        worklogId:
+          type: string
+          minLength: 1
+        author:
+          $ref: '#/components/schemas/JiraUser'
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+        timeSpentSeconds:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+
+    OpsgenieTeamRef:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+      additionalProperties: false
+
+    CanonicalProjectWithOpsgenieTeams:
+      type: object
+      required:
+        - project
+        - opsgenieTeams
+      properties:
+        project:
+          $ref: '#/components/schemas/JiraProject'
+        opsgenieTeams:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpsgenieTeamRef'
+      additionalProperties: false
+

@@ -1,57 +1,71 @@
 import httpx
-import respx
 
-from atlassian_graphql.auth import BasicApiTokenAuth, CookieAuth, OAuthBearerAuth
-from atlassian_graphql.client import GraphQLClient
+from atlassian.auth import BasicApiTokenAuth, CookieAuth, OAuthBearerAuth
+from atlassian.graph.client import GraphQLClient
 
 
-@respx.mock
 def test_bearer_auth_header():
     captured = {}
 
     def token():
         return "abc123"
 
-    route = respx.post("https://example.com/graphql").mock(
-        side_effect=lambda request: _capture_request(request, captured)
-    )
-    client = GraphQLClient("https://example.com", auth=OAuthBearerAuth(token))
-    client.execute("query { test }")
-    assert route.called
-    assert captured["authorization"] == "Bearer abc123"
-    client.close()
+    transport = httpx.MockTransport(lambda request: _capture_request(request, captured))
+    with httpx.Client(transport=transport, timeout=5.0) as http_client:
+        client = GraphQLClient(
+            "https://example.com",
+            auth=OAuthBearerAuth(token),
+            http_client=http_client,
+        )
+        client.execute("query { test }")
+        assert captured["authorization"] == "Bearer abc123"
 
 
-@respx.mock
+def test_bearer_auth_strips_bearer_prefix():
+    captured = {}
+
+    def token():
+        return "Bearer abc123"
+
+    transport = httpx.MockTransport(lambda request: _capture_request(request, captured))
+    with httpx.Client(transport=transport, timeout=5.0) as http_client:
+        client = GraphQLClient(
+            "https://example.com",
+            auth=OAuthBearerAuth(token),
+            http_client=http_client,
+        )
+        client.execute("query { test }")
+        assert captured["authorization"] == "Bearer abc123"
+
+
 def test_basic_auth_header():
     captured = {}
 
-    route = respx.post("https://example.com/graphql").mock(
-        side_effect=lambda request: _capture_request(request, captured)
-    )
-    client = GraphQLClient(
-        "https://example.com", auth=BasicApiTokenAuth("user@example.com", "apitoken")
-    )
-    client.execute("query { test }")
-    assert "Basic " in captured["authorization"]
-    client.close()
+    transport = httpx.MockTransport(lambda request: _capture_request(request, captured))
+    with httpx.Client(transport=transport, timeout=5.0) as http_client:
+        client = GraphQLClient(
+            "https://example.com",
+            auth=BasicApiTokenAuth("user@example.com", "apitoken"),
+            http_client=http_client,
+        )
+        client.execute("query { test }")
+        assert "Basic " in captured["authorization"]
 
 
-@respx.mock
 def test_cookie_auth_applied():
     captured = {}
-    route = respx.post("https://example.com/graphql").mock(
-        side_effect=lambda request: _capture_request(request, captured)
-    )
-    client = GraphQLClient(
-        "https://example.com", auth=CookieAuth({"session": "abc", "xsrf": "123"})
-    )
-    client.execute("query { test }")
-    assert "session=abc" in captured["cookie"]
-    client.close()
+    transport = httpx.MockTransport(lambda request: _capture_request(request, captured))
+    with httpx.Client(transport=transport, timeout=5.0) as http_client:
+        client = GraphQLClient(
+            "https://example.com",
+            auth=CookieAuth({"session": "abc", "xsrf": "123"}),
+            http_client=http_client,
+        )
+        client.execute("query { test }")
+        assert "session=abc" in captured["cookie"]
 
 
 def _capture_request(request: httpx.Request, target: dict):
     for key, value in request.headers.items():
         target[key.lower()] = value
-    return httpx.Response(200, json={"data": {"ok": True}})
+    return httpx.Response(200, json={"data": {"ok": True}}, request=request)

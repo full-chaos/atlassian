@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"atlassian-graphql/graphql"
+	"atlassian/atlassian"
+	"atlassian/atlassian/graph"
 )
 
 func TestRetryOn429TimestampHeader(t *testing.T) {
@@ -14,7 +15,7 @@ func TestRetryOn429TimestampHeader(t *testing.T) {
 	attempts := 0
 	var slept []time.Duration
 
-	client := graphql.Client{
+	client := graph.Client{
 		BaseURL:       "http://example",
 		Auth:          noAuth{},
 		MaxRetries429: 1,
@@ -49,7 +50,7 @@ func TestRetryOn429TimestampHeader(t *testing.T) {
 }
 
 func TestInvalidRetryAfterReturnsError(t *testing.T) {
-	client := graphql.Client{
+	client := graph.Client{
 		BaseURL:       "http://example",
 		Auth:          noAuth{},
 		MaxRetries429: 0,
@@ -63,7 +64,7 @@ func TestInvalidRetryAfterReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	rlErr, ok := err.(*graphql.RateLimitError)
+	rlErr, ok := err.(*atlassian.RateLimitError)
 	if !ok {
 		t.Fatalf("expected RateLimitError, got %T", err)
 	}
@@ -80,7 +81,7 @@ func TestRetryAfterInPastRetriesImmediately(t *testing.T) {
 	attempts := 0
 	var slept []time.Duration
 
-	client := graphql.Client{
+	client := graph.Client{
 		BaseURL:       "http://example",
 		Auth:          noAuth{},
 		MaxRetries429: 1,
@@ -117,7 +118,7 @@ func TestDoesNotRetryOn5xx(t *testing.T) {
 	for _, status := range statuses {
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			attempts := 0
-			client := graphql.Client{
+			client := graph.Client{
 				BaseURL:       "http://example",
 				Auth:          noAuth{},
 				MaxRetries429: 2,
@@ -142,7 +143,7 @@ func TestLocalThrottlingFailsWhenWaitExceedsCap(t *testing.T) {
 	var slept []time.Duration
 	attempts := 0
 
-	client := graphql.Client{
+	client := graph.Client{
 		BaseURL:               "http://example",
 		Auth:                  noAuth{},
 		EnableLocalThrottling: true,
@@ -162,7 +163,7 @@ func TestLocalThrottlingFailsWhenWaitExceedsCap(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected local rate limit error")
 	}
-	if _, ok := err.(*graphql.LocalRateLimitError); !ok {
+	if _, ok := err.(*atlassian.LocalRateLimitError); !ok {
 		t.Fatalf("expected LocalRateLimitError, got %T", err)
 	}
 	if attempts != 0 {
