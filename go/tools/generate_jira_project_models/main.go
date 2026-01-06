@@ -45,6 +45,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
+	tokenFile := strings.TrimSpace(os.Getenv("ATLASSIAN_OAUTH_TOKEN_FILE"))
+	if tokenFile == "" {
+		tokenFile = filepath.Join(repoRoot, "oauth_tokens.txt")
+	}
+	loadEnvFile(tokenFile)
 
 	schemaPath := filepath.Join(repoRoot, "graphql", "schema.introspection.json")
 	if _, err := os.Stat(schemaPath); err != nil {
@@ -138,6 +143,48 @@ func parseExperimentalAPIs() []string {
 		}
 	}
 	return out
+}
+
+func loadEnvFile(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "export ") {
+			trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "export "))
+		}
+		eq := strings.Index(trimmed, "=")
+		if eq <= 0 {
+			continue
+		}
+		key := strings.TrimSpace(trimmed[:eq])
+		val := strings.TrimSpace(trimmed[eq+1:])
+		if key == "" {
+			continue
+		}
+		if _, ok := os.LookupEnv(key); ok {
+			continue
+		}
+		val = stripQuotes(val)
+		_ = os.Setenv(key, val)
+	}
+}
+
+func stripQuotes(raw string) string {
+	if len(raw) >= 2 {
+		first := raw[0]
+		last := raw[len(raw)-1]
+		if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+			return raw[1 : len(raw)-1]
+		}
+	}
+	return raw
 }
 
 func buildAuthFromEnv() atlassian.AuthProvider {
@@ -662,10 +709,10 @@ func renderGo(cfg *config) (string, error) {
 		"package gen",
 		"",
 		"import (",
-		`\t"encoding/json"`,
-		`\t"errors"`,
-		`\t"fmt"`,
-		`\t"strings"`,
+		"\t\"encoding/json\"",
+		"\t\"errors\"",
+		"\t\"fmt\"",
+		"\t\"strings\"",
 		")",
 		"",
 		"const (",
@@ -681,13 +728,13 @@ func renderGo(cfg *config) (string, error) {
 		"",
 		"func BuildJiraProjectsPageQuery(projectTypes []string) (string, error) {",
 		"\tif len(projectTypes) == 0 {",
-		`\t\treturn "", errors.New("projectTypes must be non-empty")`,
+		"\t\treturn \"\", errors.New(\"projectTypes must be non-empty\")",
 		"\t}",
 		"\tclean := make([]string, 0, len(projectTypes))",
 		"\tfor _, raw := range projectTypes {",
 		"\t\tv := strings.ToUpper(strings.TrimSpace(raw))",
 		"\t\tif v == \"\" {",
-		`\t\t\treturn "", errors.New("empty project type")`,
+		"\t\t\treturn \"\", errors.New(\"empty project type\")",
 		"\t\t}",
 		"\t\tfor i, r := range v {",
 		"\t\t\tif r == '_' {",
@@ -695,12 +742,12 @@ func renderGo(cfg *config) (string, error) {
 		"\t\t\t}",
 		"\t\t\tif i == 0 {",
 		"\t\t\t\tif r < 'A' || r > 'Z' {",
-		`\t\t\t\t\treturn "", fmt.Errorf("invalid project type %q", raw)`,
+		"\t\t\t\t\treturn \"\", fmt.Errorf(\"invalid project type %q\", raw)",
 		"\t\t\t\t}",
 		"\t\t\t\tcontinue",
 		"\t\t\t}",
 		"\t\t\tif (r < 'A' || r > 'Z') && (r < '0' || r > '9') {",
-		`\t\t\t\treturn "", fmt.Errorf("invalid project type %q", raw)`,
+		"\t\t\t\treturn \"\", fmt.Errorf(\"invalid project type %q\", raw)",
 		"\t\t\t}",
 		"\t\t}",
 		"\t\tclean = append(clean, v)",

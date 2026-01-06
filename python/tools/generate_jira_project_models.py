@@ -48,6 +48,30 @@ def _env_experimental_apis() -> List[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 
+def _maybe_strip_quotes(raw: str) -> str:
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in {"'", '"'}:
+        return raw[1:-1]
+    return raw
+
+
+def _load_env_file(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("export "):
+            stripped = stripped[len("export ") :].strip()
+        if "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        os.environ[key] = _maybe_strip_quotes(value.strip())
+
+
 def _build_auth_from_env():
     token = os.getenv("ATLASSIAN_OAUTH_ACCESS_TOKEN")
     refresh_token = os.getenv("ATLASSIAN_OAUTH_REFRESH_TOKEN")
@@ -526,7 +550,7 @@ def build_jira_projects_page_query(project_types: Sequence[str]) -> str:
             raise ValueError("project_types must be strings")
         value = raw.strip().upper()
         if not value or not value.replace("_", "").isalnum() or not value[0].isalpha():
-            raise ValueError(f"invalid Jira project type enum token: {raw!r}")
+            raise ValueError(f"invalid Jira project type enum token: {{raw!r}}")
         cleaned.append(value)
     joined = ", ".join(cleaned)
     return JIRA_PROJECTS_PAGE_QUERY_TEMPLATE.replace("__PROJECT_TYPES__", joined)
@@ -729,6 +753,11 @@ def parse_project_opsgenie_teams(data: Any) -> OpsgenieTeamsConnection:
 
 def main(argv: Sequence[str]) -> int:
     repo_root = Path(__file__).resolve().parents[2]
+    token_file = os.getenv("ATLASSIAN_OAUTH_TOKEN_FILE")
+    if not token_file:
+        token_file = str(repo_root / "oauth_tokens.txt")
+    _load_env_file(Path(token_file))
+
     schema_path = repo_root / "graphql" / "schema.introspection.json"
 
     if not schema_path.exists():
