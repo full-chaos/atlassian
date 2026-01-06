@@ -36,6 +36,7 @@ from .oauth_3lo import (
 from .rest.api.jira_changelog import iter_issue_changelog_via_rest
 from .rest.api.jira_issues import iter_issues_via_rest, list_issues_via_rest
 from .rest.api.jira_projects import iter_projects_via_rest, list_projects_via_rest
+from .rest.api.jira_sprints import iter_board_sprints_via_rest
 from .rest.api.jira_worklogs import iter_issue_worklogs_via_rest
 from .rest.client import JiraRestClient
 from .rest.openapi_fetcher import fetch_jira_rest_openapi
@@ -80,5 +81,6 @@ __all__ = [
     "list_issues_via_rest",
     "iter_issue_changelog_via_rest",
     "iter_issue_worklogs_via_rest",
+    "iter_board_sprints_via_rest",
 ]
 

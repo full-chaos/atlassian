@@ -108,6 +108,10 @@ projects = list(iter_projects_via_rest(rest, cloud_id="YOUR_CLOUD_ID", project_t
 
 # Convenience wrapper (builds JiraRestClient from env vars)
 projects = list(list_projects_via_rest("YOUR_CLOUD_ID", ["SOFTWARE"]))
+
+# Jira Agile sprints (via Jira Software REST API)
+from atlassian import iter_board_sprints_via_rest
+sprints = list(iter_board_sprints_via_rest(rest, board_id=10, state="active"))
 ```
 
 ## Go usage
@@ -165,6 +169,9 @@ rest := rest.JiraRESTClient{
     },
 }
 projects, err = rest.ListProjectsViaREST(context.Background(), "YOUR_CLOUD_ID", []string{"SOFTWARE"}, 50)
+
+// Jira Agile sprints (via Jira Software REST API)
+sprints, err := rest.ListBoardSprintsViaREST(context.Background(), 10, "active", 50)
 ```
 
 - Strict mode raises/returns GraphQL operation errors when `errors[]` is present.
