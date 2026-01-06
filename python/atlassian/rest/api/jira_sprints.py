@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Iterator, Optional, Set, Union
+from typing import Dict, Iterator, Optional, Union
 
 from ...canonical_models import JiraSprint
 from ...errors import SerializationError
@@ -31,7 +31,7 @@ def iter_board_sprints_via_rest(
         ValueError: If board_id is invalid or page_size is <= 0
         SerializationError: If pagination loops
     """
-    if board_id is None or board_id <= 0:
+    if board_id <= 0:
         raise ValueError("board_id must be a positive integer")
     if page_size <= 0:
         raise ValueError("page_size must be > 0")
@@ -39,11 +39,14 @@ def iter_board_sprints_via_rest(
     state_clean: Optional[str] = None
     if state is not None:
         state_clean = state.strip().lower()
-        if state_clean not in ("future", "active", "closed"):
+        if not state_clean:
+            # Treat empty/whitespace-only state as no filter for consistency with Go implementation
+            state_clean = None
+        elif state_clean not in ("future", "active", "closed"):
             raise ValueError("state must be one of: future, active, closed")
 
     start_at = 0
-    seen_start_at: Set[int] = set()
+    seen_start_at: set[int] = set()
 
     while True:
         if start_at in seen_start_at:

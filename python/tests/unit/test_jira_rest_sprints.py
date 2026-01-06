@@ -138,3 +138,38 @@ def test_iter_board_sprints_with_state_filter():
 
     assert len(sprints) == 1
     assert sprints[0].state == "active"
+
+
+def test_iter_board_sprints_empty_state_treated_as_no_filter():
+    """Test that empty string state is treated as no filter (same as None)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        # Empty string should not be passed as state param
+        assert "state" not in request.url.params
+        return httpx.Response(
+            200,
+            json={
+                "startAt": 0,
+                "maxResults": 50,
+                "isLast": True,
+                "values": [
+                    {
+                        "id": 100,
+                        "name": "Sprint 1",
+                        "state": "active",
+                    }
+                ],
+            },
+            request=request,
+        )
+
+    transport = httpx.MockTransport(handler)
+    with httpx.Client(transport=transport, timeout=5.0) as http_client:
+        client = JiraRestClient(
+            "https://api.atlassian.com/ex/jira/cloud-123",
+            auth=OAuthBearerAuth(lambda: "token"),
+            http_client=http_client,
+        )
+        sprints = list(iter_board_sprints_via_rest(client, board_id=10, state=""))
+
+    assert len(sprints) == 1
