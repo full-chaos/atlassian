@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterator, Optional
+from typing import Dict, Iterator, Optional, Set, Union
 
 from ...canonical_models import JiraSprint
 from ...errors import SerializationError
@@ -43,14 +43,14 @@ def iter_board_sprints_via_rest(
             raise ValueError("state must be one of: future, active, closed")
 
     start_at = 0
-    seen_start_at: set[int] = set()
+    seen_start_at: Set[int] = set()
 
     while True:
         if start_at in seen_start_at:
             raise SerializationError("Pagination startAt repeated; aborting to prevent infinite loop")
         seen_start_at.add(start_at)
 
-        params: dict[str, int | str] = {"startAt": start_at, "maxResults": page_size}
+        params: Dict[str, Union[int, str]] = {"startAt": start_at, "maxResults": page_size}
         if state_clean is not None:
             params["state"] = state_clean
 
