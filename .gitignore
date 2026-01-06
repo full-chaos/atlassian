@@ -27,6 +27,7 @@ openapi/jira-rest.swagger-v3.json
 
 # Env / tooling
 .python-version
+oauth_tokens.txt
 # Created by https://www.toptal.com/developers/gitignore/api/go,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,python
 

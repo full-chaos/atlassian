@@ -44,6 +44,7 @@ Canonical analytics schemas live in `openapi/jira-developer-health.canonical.ope
 1. Create a 3LO app in the Atlassian Developer Console and configure a redirect URI (e.g. `http://localhost:8080/callback`).
 2. Run the helper and follow the prompts:
    - Python: `make oauth-login`
+   - Python (local callback server + token file): `make oauth-login-server OAUTH_LOGIN_ARGS="--output oauth_tokens.txt"`
    - Go: `make oauth-login-go`
    - To print cloud IDs (accessible resources): `make oauth-login OAUTH_LOGIN_ARGS="--print-accessible-resources"` (or run `python python/tools/oauth_login.py --print-accessible-resources` directly)
 3. Include `offline_access` in your scopes to receive a refresh token, then set:

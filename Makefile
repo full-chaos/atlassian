@@ -1,4 +1,4 @@
-.PHONY: graphql-schema graphql-gen oauth-login oauth-login-go test-python test-go jira-rest-openapi jira-rest-gen
+.PHONY: graphql-schema graphql-gen oauth-login oauth-login-server oauth-login-go test-python test-go jira-rest-openapi jira-rest-gen
 
 GOCACHE ?= $(CURDIR)/go/.gocache
 GOPATH ?= $(CURDIR)/go/.gopath
@@ -20,6 +20,9 @@ jira-rest-gen:
 
 oauth-login:
 	python python/tools/oauth_login.py $(OAUTH_LOGIN_ARGS)
+
+oauth-login-server:
+	python python/tools/oauth_login_server.py $(OAUTH_LOGIN_ARGS)
 
 oauth-login-go:
 	cd go && GOCACHE="$(GOCACHE)" GOPATH="$(GOPATH)" go run ./tools/oauth_login $(OAUTH_LOGIN_ARGS)
