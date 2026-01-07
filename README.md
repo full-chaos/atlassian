@@ -198,6 +198,7 @@ sprints, err := rest.ListBoardSprintsViaREST(context.Background(), 10, "active",
 
 - Python: `cd python && pip install -e . && pytest`
 - Go: `cd go && go test ./...`
+- Terraform: `cd terraform && go test ./...` (or `make terraform-test`)
 - Integration (env-gated):
   - `ATLASSIAN_CLOUD_ID` (or `ATLASSIAN_JIRA_CLOUD_ID`) for Jira project listing integration tests
   - One of `ATLASSIAN_OAUTH_ACCESS_TOKEN` _or_ (`ATLASSIAN_EMAIL` + `ATLASSIAN_API_TOKEN`) _or_ `ATLASSIAN_COOKIES_JSON`
@@ -210,3 +211,27 @@ sprints, err := rest.ListBoardSprintsViaREST(context.Background(), 10, "active",
   - Integration tests will load a repo-root `.env` if present (without overriding existing environment variables)
   - Python: `cd python && pytest tests/integration`
   - Go: `cd go && go test -tags=integration ./...`
+
+## Terraform Provider
+
+A Terraform provider is available for reading Jira data using the Go client. See `terraform/README.md` for details.
+
+Quick start:
+```hcl
+provider "jira" {
+  cloud_id = "your-cloud-id"
+}
+
+data "jira_projects" "software" {
+  project_types = ["SOFTWARE"]
+}
+
+data "jira_issues" "recent" {
+  jql = "project = PROJ AND updated >= -7d"
+}
+```
+
+Build the provider:
+```shell
+make terraform
+```

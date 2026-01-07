@@ -18,6 +18,9 @@ go/.gopath/
 go/.cache/
 bin/
 
+# Terraform provider binary
+terraform/terraform-provider-jira
+
 # Generated GraphQL schema
 graphql/schema.introspection.json
 graphql/schema.sdl.graphql
