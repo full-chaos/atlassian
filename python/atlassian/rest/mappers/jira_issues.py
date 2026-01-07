@@ -47,7 +47,76 @@ def _maybe_user(obj: Any, path: str) -> Optional[JiraUser]:
     )
 
 
-def map_issue(*, cloud_id: str, issue: IssueBean) -> JiraIssue:
+def _parse_story_points(fields: Dict[str, Any], field_name: Optional[str]) -> Optional[float]:
+    if not field_name:
+        return None
+    field_key = field_name.strip()
+    if not field_key:
+        raise ValueError("story_points_field must be non-empty when provided")
+    raw = fields.get(field_key)
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        raise ValueError(f"issue.fields.{field_key} must be a number when present")
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    if isinstance(raw, str):
+        if not raw.strip():
+            return None
+        try:
+            return float(raw)
+        except ValueError as exc:
+            raise ValueError(f"issue.fields.{field_key} must be a number when present") from exc
+    raise ValueError(f"issue.fields.{field_key} must be a number when present")
+
+
+def _coerce_sprint_id(value: Any, path: str) -> str:
+    if isinstance(value, bool):
+        raise ValueError(f"{path} must be a string or integer")
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if value.is_integer():
+            return str(int(value))
+        raise ValueError(f"{path} must be an integer")
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError(f"{path} must be non-empty")
+        return cleaned
+    raise ValueError(f"{path} must be a string or integer")
+
+
+def _parse_sprint_ids(fields: Dict[str, Any], field_name: Optional[str]) -> List[str]:
+    if not field_name:
+        return []
+    field_key = field_name.strip()
+    if not field_key:
+        raise ValueError("sprint_ids_field must be non-empty when provided")
+    raw = fields.get(field_key)
+    if raw is None:
+        return []
+    items = _expect_list(raw, f"issue.fields.{field_key}")
+    out: List[str] = []
+    for idx, item in enumerate(items):
+        path = f"issue.fields.{field_key}[{idx}]"
+        if isinstance(item, dict):
+            sprint_id = item.get("id")
+            if sprint_id is None:
+                raise ValueError(f"{path}.id is required")
+            out.append(_coerce_sprint_id(sprint_id, f"{path}.id"))
+        else:
+            out.append(_coerce_sprint_id(item, path))
+    return out
+
+
+def map_issue(
+    *,
+    cloud_id: str,
+    issue: IssueBean,
+    story_points_field: Optional[str] = None,
+    sprint_ids_field: Optional[str] = None,
+) -> JiraIssue:
     cloud_id_clean = (cloud_id or "").strip()
     if not cloud_id_clean:
         raise ValueError("cloud_id is required")
@@ -93,6 +162,9 @@ def map_issue(*, cloud_id: str, issue: IssueBean) -> JiraIssue:
     assignee = _maybe_user(fields.get("assignee"), "issue.fields.assignee")
     reporter = _maybe_user(fields.get("reporter"), "issue.fields.reporter")
 
+    story_points = _parse_story_points(fields, story_points_field)
+    sprint_ids = _parse_sprint_ids(fields, sprint_ids_field)
+
     return JiraIssue(
         cloud_id=cloud_id_clean,
         key=issue_key,
@@ -106,6 +178,6 @@ def map_issue(*, cloud_id: str, issue: IssueBean) -> JiraIssue:
         reporter=reporter,
         labels=labels,
         components=components,
-        story_points=None,
-        sprint_ids=[],
+        story_points=story_points,
+        sprint_ids=sprint_ids,
     )

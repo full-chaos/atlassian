@@ -3,6 +3,8 @@ package mappers
 import (
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"atlassian/atlassian"
@@ -85,7 +87,111 @@ func optionalUser(obj map[string]any, key string, path string) (*atlassian.JiraU
 	}, nil
 }
 
+func parseStoryPoints(fields map[string]any, fieldName string) (*float64, error) {
+	key := strings.TrimSpace(fieldName)
+	if key == "" {
+		return nil, nil
+	}
+	raw, ok := fields[key]
+	if !ok || raw == nil {
+		return nil, nil
+	}
+	if _, ok := raw.(bool); ok {
+		return nil, fmt.Errorf("issue.fields.%s must be a number when present", key)
+	}
+	switch v := raw.(type) {
+	case float64:
+		return &v, nil
+	case int:
+		f := float64(v)
+		return &f, nil
+	case int64:
+		f := float64(v)
+		return &f, nil
+	case string:
+		clean := strings.TrimSpace(v)
+		if clean == "" {
+			return nil, nil
+		}
+		parsed, err := strconv.ParseFloat(clean, 64)
+		if err != nil {
+			return nil, fmt.Errorf("issue.fields.%s must be a number when present", key)
+		}
+		return &parsed, nil
+	default:
+		return nil, fmt.Errorf("issue.fields.%s must be a number when present", key)
+	}
+}
+
+func coerceSprintID(value any, path string) (string, error) {
+	if value == nil {
+		return "", fmt.Errorf("%s is required", path)
+	}
+	switch v := value.(type) {
+	case bool:
+		return "", fmt.Errorf("%s must be a string or integer", path)
+	case string:
+		clean := strings.TrimSpace(v)
+		if clean == "" {
+			return "", fmt.Errorf("%s must be non-empty", path)
+		}
+		return clean, nil
+	case int:
+		return strconv.Itoa(v), nil
+	case int64:
+		return strconv.FormatInt(v, 10), nil
+	case float64:
+		if math.Trunc(v) != v {
+			return "", fmt.Errorf("%s must be an integer", path)
+		}
+		return strconv.FormatInt(int64(v), 10), nil
+	default:
+		return "", fmt.Errorf("%s must be a string or integer", path)
+	}
+}
+
+func parseSprintIDs(fields map[string]any, fieldName string) ([]string, error) {
+	key := strings.TrimSpace(fieldName)
+	if key == "" {
+		return []string{}, nil
+	}
+	raw, ok := fields[key]
+	if !ok || raw == nil {
+		return []string{}, nil
+	}
+	arr, ok := raw.([]any)
+	if !ok {
+		return nil, fmt.Errorf("issue.fields.%s must be a list when present", key)
+	}
+	out := make([]string, 0, len(arr))
+	for idx, item := range arr {
+		path := fmt.Sprintf("issue.fields.%s[%d]", key, idx)
+		if obj, ok := item.(map[string]any); ok {
+			idVal, exists := obj["id"]
+			if !exists || idVal == nil {
+				return nil, fmt.Errorf("%s.id is required", path)
+			}
+			coerced, err := coerceSprintID(idVal, path+".id")
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, coerced)
+			continue
+		}
+		coerced, err := coerceSprintID(item, path)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, coerced)
+	}
+	return out, nil
+}
+
 func JiraIssueFromREST(cloudID string, issue gen.IssueBean) (atlassian.JiraIssue, error) {
+	return JiraIssueFromRESTWithFields(cloudID, issue, "", "")
+}
+
+func JiraIssueFromRESTWithFields(cloudID string, issue gen.IssueBean, storyPointsField string, sprintIDsField string) (atlassian.JiraIssue, error) {
 	cloud := strings.TrimSpace(cloudID)
 	if cloud == "" {
 		return atlassian.JiraIssue{}, errors.New("cloudID is required")
@@ -189,6 +295,15 @@ func JiraIssueFromREST(cloudID string, issue gen.IssueBean) (atlassian.JiraIssue
 		return atlassian.JiraIssue{}, err
 	}
 
+	storyPoints, err := parseStoryPoints(fields, storyPointsField)
+	if err != nil {
+		return atlassian.JiraIssue{}, err
+	}
+	sprintIDs, err := parseSprintIDs(fields, sprintIDsField)
+	if err != nil {
+		return atlassian.JiraIssue{}, err
+	}
+
 	return atlassian.JiraIssue{
 		CloudID:     cloud,
 		Key:         issueKey,
@@ -202,7 +317,7 @@ func JiraIssueFromREST(cloudID string, issue gen.IssueBean) (atlassian.JiraIssue
 		Reporter:    reporter,
 		Labels:      labels,
 		Components:  components,
-		StoryPoints: nil,
-		SprintIDs:   []string{},
+		StoryPoints: storyPoints,
+		SprintIDs:   sprintIDs,
 	}, nil
 }

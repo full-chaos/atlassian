@@ -11,7 +11,13 @@ graphql-schema:
 
 graphql-gen:
 	python python/tools/generate_jira_project_models.py
+	python python/tools/generate_jira_issue_models.py
+	python python/tools/generate_jira_sprint_models.py
+	python python/tools/generate_jira_worklog_models.py
 	cd go && GOCACHE="$(GOCACHE)" GOPATH="$(GOPATH)" go run ./tools/generate_jira_project_models
+	cd go && GOCACHE="$(GOCACHE)" GOPATH="$(GOPATH)" go run ./tools/generate_jira_issue_models
+	cd go && GOCACHE="$(GOCACHE)" GOPATH="$(GOPATH)" go run ./tools/generate_jira_sprint_models
+	cd go && GOCACHE="$(GOCACHE)" GOPATH="$(GOPATH)" go run ./tools/generate_jira_worklog_models
 
 graphql: graphql-schema graphql-gen
 
