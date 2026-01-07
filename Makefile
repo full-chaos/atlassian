@@ -1,4 +1,4 @@
-.PHONY: all oauth graphql rest graphql-schema graphql-gen oauth-login oauth-login-server oauth-login-go test-python test-go jira-rest-openapi jira-rest-gen
+.PHONY: all oauth graphql rest graphql-schema graphql-gen oauth-login oauth-login-server oauth-login-go test-python test-go jira-rest-openapi jira-rest-gen terraform terraform-test
 
 GOCACHE ?= $(CURDIR)/go/.gocache
 GOPATH ?= $(CURDIR)/go/.gopath
@@ -51,3 +51,9 @@ test-python:
 
 test-go:
 	cd go && GOCACHE="$(GOCACHE)" GOPATH="$(GOPATH)" go test ./...
+
+terraform:
+	cd terraform && GOCACHE="$(GOCACHE)" GOPATH="$(GOPATH)" go build -o terraform-provider-jira .
+
+terraform-test:
+	cd terraform && GOCACHE="$(GOCACHE)" GOPATH="$(GOPATH)" go test ./...
