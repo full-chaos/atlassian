@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Iterator, Optional, Sequence
+import os
+from typing import Iterator, List, Optional, Sequence
 
 from ...canonical_models import JiraIssue
 from ...errors import SerializationError
@@ -24,6 +25,33 @@ _DEFAULT_SEARCH_FIELDS = (
 )
 
 
+def _build_field_list(
+    fields: Optional[Sequence[str]],
+    story_points_field: Optional[str],
+    sprint_ids_field: Optional[str],
+) -> List[str]:
+    field_list = [f.strip() for f in (fields or _DEFAULT_SEARCH_FIELDS) if f and f.strip()]
+    if not field_list:
+        raise ValueError("fields must be non-empty")
+    for raw in (story_points_field, sprint_ids_field):
+        if raw is None:
+            continue
+        extra = raw.strip()
+        if not extra:
+            raise ValueError("custom field names must be non-empty when provided")
+        if extra not in field_list:
+            field_list.append(extra)
+    return field_list
+
+
+def _env_custom_field(env_name: str) -> Optional[str]:
+    raw = os.getenv(env_name)
+    if raw is None:
+        return None
+    cleaned = raw.strip()
+    return cleaned or None
+
+
 def iter_issues_via_rest(
     client: JiraRestClient,
     cloud_id: str,
@@ -31,6 +59,8 @@ def iter_issues_via_rest(
     page_size: int = 50,
     *,
     fields: Optional[Sequence[str]] = None,
+    story_points_field: Optional[str] = None,
+    sprint_ids_field: Optional[str] = None,
 ) -> Iterator[JiraIssue]:
     cloud_id_clean = (cloud_id or "").strip()
     if not cloud_id_clean:
@@ -41,9 +71,12 @@ def iter_issues_via_rest(
     if page_size <= 0:
         raise ValueError("page_size must be > 0")
 
-    field_list = [f.strip() for f in (fields or _DEFAULT_SEARCH_FIELDS) if f and f.strip()]
-    if not field_list:
-        raise ValueError("fields must be non-empty")
+    if story_points_field is None:
+        story_points_field = _env_custom_field("ATLASSIAN_JIRA_STORY_POINTS_FIELD")
+    if sprint_ids_field is None:
+        sprint_ids_field = _env_custom_field("ATLASSIAN_JIRA_SPRINT_IDS_FIELD")
+
+    field_list = _build_field_list(fields, story_points_field, sprint_ids_field)
     fields_param = ",".join(field_list)
 
     start_at = 0
@@ -67,7 +100,12 @@ def iter_issues_via_rest(
         issues = page.issues
 
         for issue in issues:
-            yield map_issue(cloud_id=cloud_id_clean, issue=issue)
+            yield map_issue(
+                cloud_id=cloud_id_clean,
+                issue=issue,
+                story_points_field=story_points_field,
+                sprint_ids_field=sprint_ids_field,
+            )
 
         has_total = isinstance(page.total, int) and page.total >= 0
         if has_total:
@@ -88,6 +126,8 @@ def list_issues_via_rest(
     page_size: int = 50,
     *,
     fields: Optional[Sequence[str]] = None,
+    story_points_field: Optional[str] = None,
+    sprint_ids_field: Optional[str] = None,
 ) -> Iterator[JiraIssue]:
     cloud_id_clean = (cloud_id or "").strip()
     if not cloud_id_clean:
@@ -109,6 +149,11 @@ def list_issues_via_rest(
             "or provide ATLASSIAN_GQL_BASE_URL for tenanted auth so it can be derived."
         )
 
+    if story_points_field is None:
+        story_points_field = _env_custom_field("ATLASSIAN_JIRA_STORY_POINTS_FIELD")
+    if sprint_ids_field is None:
+        sprint_ids_field = _env_custom_field("ATLASSIAN_JIRA_SPRINT_IDS_FIELD")
+
     with JiraRestClient(base_url, auth=auth, timeout_seconds=30.0, max_retries_429=1) as client:
         yield from iter_issues_via_rest(
             client,
@@ -116,4 +161,6 @@ def list_issues_via_rest(
             jql=jql,
             page_size=page_size,
             fields=fields,
+            story_points_field=story_points_field,
+            sprint_ids_field=sprint_ids_field,
         )
