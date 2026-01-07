@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -26,6 +27,44 @@ var defaultJiraSearchFields = []string{
 }
 
 func (c *JiraRESTClient) ListIssuesViaREST(ctx context.Context, cloudID string, jql string, pageSize int) ([]atlassian.JiraIssue, error) {
+	storyPointsField := strings.TrimSpace(os.Getenv("ATLASSIAN_JIRA_STORY_POINTS_FIELD"))
+	sprintIDsField := strings.TrimSpace(os.Getenv("ATLASSIAN_JIRA_SPRINT_IDS_FIELD"))
+	return c.ListIssuesViaRESTWithFields(ctx, cloudID, jql, pageSize, storyPointsField, sprintIDsField)
+}
+
+func buildJiraSearchFields(storyPointsField string, sprintIDsField string) ([]string, error) {
+	fields := make([]string, 0, len(defaultJiraSearchFields)+2)
+	fields = append(fields, defaultJiraSearchFields...)
+	for _, raw := range []string{storyPointsField, sprintIDsField} {
+		if raw == "" {
+			continue
+		}
+		clean := strings.TrimSpace(raw)
+		if clean == "" {
+			return nil, errors.New("custom field names must be non-empty when provided")
+		}
+		already := false
+		for _, existing := range fields {
+			if existing == clean {
+				already = true
+				break
+			}
+		}
+		if !already {
+			fields = append(fields, clean)
+		}
+	}
+	return fields, nil
+}
+
+func (c *JiraRESTClient) ListIssuesViaRESTWithFields(
+	ctx context.Context,
+	cloudID string,
+	jql string,
+	pageSize int,
+	storyPointsField string,
+	sprintIDsField string,
+) ([]atlassian.JiraIssue, error) {
 	cloud := strings.TrimSpace(cloudID)
 	if cloud == "" {
 		return nil, errors.New("cloudID is required")
@@ -38,7 +77,11 @@ func (c *JiraRESTClient) ListIssuesViaREST(ctx context.Context, cloudID string, 
 		pageSize = 50
 	}
 
-	fields := strings.Join(defaultJiraSearchFields, ",")
+	fieldList, err := buildJiraSearchFields(storyPointsField, sprintIDsField)
+	if err != nil {
+		return nil, err
+	}
+	fields := strings.Join(fieldList, ",")
 	startAt := 0
 	seenStart := map[int]struct{}{}
 	var out []atlassian.JiraIssue
@@ -64,7 +107,7 @@ func (c *JiraRESTClient) ListIssuesViaREST(ctx context.Context, cloudID string, 
 		}
 
 		for _, it := range page.Issues {
-			mapped, err := mappers.JiraIssueFromREST(cloud, it)
+			mapped, err := mappers.JiraIssueFromRESTWithFields(cloud, it, storyPointsField, sprintIDsField)
 			if err != nil {
 				return nil, err
 			}
