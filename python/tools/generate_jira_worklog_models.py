@@ -447,6 +447,7 @@ def main() -> None:
             raise RuntimeError("No credentials available in env vars to fetch schema")
         fetch_schema_introspection(
             base_url=base_url,
+            auth=auth,
             output_dir=str(schema_path.parent),
             experimental_apis=_env_experimental_apis(),
         )
