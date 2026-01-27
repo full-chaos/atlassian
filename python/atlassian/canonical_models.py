@@ -102,3 +102,33 @@ class JiraVersion:
     project_key: str
     released: bool
     release_date: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class AtlassianOpsIncident:
+    id: str
+    url: Optional[str]
+    summary: str
+    description: Optional[str]
+    status: str
+    severity: str
+    created_at: str
+    provider_id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class AtlassianOpsAlert:
+    id: str
+    status: str
+    priority: str
+    created_at: str
+    acknowledged_at: Optional[str] = None
+    snoozed_at: Optional[str] = None
+    closed_at: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class AtlassianOpsSchedule:
+    id: str
+    name: str
+    timezone: Optional[str] = None

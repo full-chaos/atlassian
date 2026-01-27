@@ -48,10 +48,10 @@ type JiraChangelogItem struct {
 }
 
 type JiraChangelogEvent struct {
-	IssueKey  string            `json:"issueKey"`
-	EventID   string            `json:"eventId"`
-	Author    *JiraUser          `json:"author,omitempty"`
-	CreatedAt string            `json:"createdAt"`
+	IssueKey  string              `json:"issueKey"`
+	EventID   string              `json:"eventId"`
+	Author    *JiraUser           `json:"author,omitempty"`
+	CreatedAt string              `json:"createdAt"`
 	Items     []JiraChangelogItem `json:"items"`
 }
 
@@ -87,4 +87,31 @@ type JiraVersion struct {
 	ProjectKey  string  `json:"projectKey"`
 	Released    bool    `json:"released"`
 	ReleaseDate *string `json:"releaseDate,omitempty"`
+}
+
+type AtlassianOpsIncident struct {
+	ID          string  `json:"id"`
+	URL         *string `json:"url,omitempty"`
+	Summary     string  `json:"summary"`
+	Description *string `json:"description,omitempty"`
+	Status      string  `json:"status"`
+	Severity    string  `json:"severity"`
+	CreatedAt   string  `json:"createdAt"`
+	ProviderID  *string `json:"providerId,omitempty"`
+}
+
+type AtlassianOpsAlert struct {
+	ID             string  `json:"id"`
+	Status         string  `json:"status"`
+	Priority       string  `json:"priority"`
+	CreatedAt      string  `json:"createdAt"`
+	AcknowledgedAt *string `json:"acknowledgedAt,omitempty"`
+	SnoozedAt      *string `json:"snoozedAt,omitempty"`
+	ClosedAt       *string `json:"closedAt,omitempty"`
+}
+
+type AtlassianOpsSchedule struct {
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	Timezone *string `json:"timezone,omitempty"`
 }

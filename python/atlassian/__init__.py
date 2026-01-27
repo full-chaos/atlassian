@@ -1,12 +1,17 @@
 from .auth import AuthProvider, BasicApiTokenAuth, CookieAuth, OAuthBearerAuth
 from .canonical_models import (
+    AtlassianOpsAlert,
+    AtlassianOpsIncident,
+    AtlassianOpsSchedule,
     CanonicalProjectWithOpsgenieTeams,
+    JiraBoard,
     JiraChangelogEvent,
     JiraChangelogItem,
     JiraIssue,
     JiraProject,
     JiraSprint,
     JiraUser,
+    JiraVersion,
     JiraWorklog,
     OpsgenieTeamRef,
 )
@@ -70,6 +75,9 @@ __all__ = [
     "JiraChangelogEvent",
     "JiraChangelogItem",
     "JiraWorklog",
+    "AtlassianOpsIncident",
+    "AtlassianOpsAlert",
+    "AtlassianOpsSchedule",
     "OpsgenieTeamRef",
     "CanonicalProjectWithOpsgenieTeams",
     "iter_projects_with_opsgenie_linkable_teams",
@@ -83,4 +91,3 @@ __all__ = [
     "iter_issue_worklogs_via_rest",
     "iter_board_sprints_via_rest",
 ]
-
