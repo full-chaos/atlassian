@@ -1,0 +1,122 @@
+name: Publish Packages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  python-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: vars
+        run: |
+          VERSION="${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.version }}"
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install build tooling
+        working-directory: python
+        run: python -m pip install build
+
+      - name: Build package
+        working-directory: python
+        run: python -m build
+
+      - name: Publish to GitHub Packages (PyPI)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://pypi.pkg.github.com/${{ github.repository_owner }}
+          user: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+  go-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: vars
+        run: |
+          VERSION="${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.version }}"
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+
+      - name: Create source archive
+        run: |
+          mkdir -p go/dist
+          tar --exclude=dist -czf go/dist/atlassian-go-src.tgz -C go .
+
+      - name: Publish to GitHub Packages (generic)
+        env:
+          VERSION: ${{ steps.vars.outputs.version }}
+          PACKAGE: atlassian-go
+          FILE: atlassian-go-src.tgz
+        run: |
+          curl --fail --location \
+            --header "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            --header "Content-Type: application/octet-stream" \
+            --data-binary @"go/dist/${FILE}" \
+            "https://github.com/${{ github.repository }}/packages/generic/${PACKAGE}/${VERSION}/${FILE}"
+
+  terraform-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: vars
+        run: |
+          VERSION="${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.version }}"
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: terraform/go.mod
+
+      - name: Build provider package
+        working-directory: terraform
+        run: |
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 go build -o dist/terraform-provider-jira .
+          tar -czf dist/terraform-provider-jira-linux-amd64.tgz -C dist terraform-provider-jira
+
+      - name: Publish to GitHub Packages (generic)
+        env:
+          VERSION: ${{ steps.vars.outputs.version }}
+          PACKAGE: terraform-provider-jira
+          FILE: terraform-provider-jira-linux-amd64.tgz
+        run: |
+          curl --fail --location \
+            --header "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            --header "Content-Type: application/octet-stream" \
+            --data-binary @"terraform/dist/${FILE}" \
+            "https://github.com/${{ github.repository }}/packages/generic/${PACKAGE}/${VERSION}/${FILE}"
