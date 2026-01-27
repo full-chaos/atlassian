@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterator, List, Optional, Sequence
+from typing import Iterator
 
 from ...canonical_models import JiraBoard
 from ...errors import SerializationError
