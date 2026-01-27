@@ -11,7 +11,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -48,6 +48,7 @@ jobs:
           repository-url: https://pypi.pkg.github.com/${{ github.repository_owner }}
           user: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+          packages-dir: python/dist/
 
   go-package:
     runs-on: ubuntu-latest
@@ -66,23 +67,25 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go/go.mod
+          cache-dependency-path: go/go.mod
 
       - name: Create source archive
         run: |
           mkdir -p go/dist
           tar --exclude=dist -czf go/dist/atlassian-go-src.tgz -C go .
 
-      - name: Publish to GitHub Packages (generic)
+      - name: Publish to GitHub Release Assets
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.vars.outputs.version }}
-          PACKAGE: atlassian-go
           FILE: atlassian-go-src.tgz
         run: |
-          curl --fail --location \
-            --header "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            --header "Content-Type: application/octet-stream" \
-            --data-binary @"go/dist/${FILE}" \
-            "https://github.com/${{ github.repository }}/packages/generic/${PACKAGE}/${VERSION}/${FILE}"
+          TAG="v${VERSION}"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" "go/dist/${FILE}" --clobber
+          else
+            echo "Release $TAG not found, skipping upload"
+          fi
 
   terraform-package:
     runs-on: ubuntu-latest
@@ -101,6 +104,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: terraform/go.mod
+          cache-dependency-path: terraform/go.sum
 
       - name: Build provider package
         working-directory: terraform
@@ -109,14 +113,15 @@ jobs:
           GOOS=linux GOARCH=amd64 go build -o dist/terraform-provider-jira .
           tar -czf dist/terraform-provider-jira-linux-amd64.tgz -C dist terraform-provider-jira
 
-      - name: Publish to GitHub Packages (generic)
+      - name: Publish to GitHub Release Assets
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.vars.outputs.version }}
-          PACKAGE: terraform-provider-jira
           FILE: terraform-provider-jira-linux-amd64.tgz
         run: |
-          curl --fail --location \
-            --header "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            --header "Content-Type: application/octet-stream" \
-            --data-binary @"terraform/dist/${FILE}" \
-            "https://github.com/${{ github.repository }}/packages/generic/${PACKAGE}/${VERSION}/${FILE}"
+          TAG="v${VERSION}"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" "terraform/dist/${FILE}" --clobber
+          else
+            echo "Release $TAG not found, skipping upload"
+          fi

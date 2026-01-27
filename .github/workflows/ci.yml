@@ -44,6 +44,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+          cache-dependency-path: go/go.mod
 
       - name: Run unit tests
         env:
@@ -61,6 +62,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+          cache-dependency-path: terraform/go.sum
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
@@ -113,6 +115,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+          cache-dependency-path: go/go.mod
 
       - name: Create source archive
         run: |
@@ -136,6 +139,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+          cache-dependency-path: terraform/go.sum
 
       - name: Build provider package
         working-directory: terraform
