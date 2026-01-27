@@ -2,6 +2,7 @@ package rest
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -118,4 +119,34 @@ func (c *JiraRESTClient) ListProjectsViaREST(ctx context.Context, cloudID string
 	}
 
 	return out, nil
+}
+
+func (c *JiraRESTClient) CreateProject(ctx context.Context, cloudID string, p atlassian.JiraProject) (atlassian.JiraProject, error) {
+	data := map[string]any{
+		"key":            p.Key,
+		"name":           p.Name,
+		"projectTypeKey": "software",
+		"leadAccountId":  "...", // Should be handled via caller or terraform
+	}
+	if p.Type != nil {
+		data["projectTypeKey"] = *p.Type
+	}
+
+	payload, err := c.PostJSON(ctx, "/rest/api/3/project", data)
+	if err != nil {
+		return atlassian.JiraProject{}, err
+	}
+
+	var genP gen.Project
+	b, _ := json.Marshal(payload)
+	json.Unmarshal(b, &genP)
+
+	return mappers.JiraProjectFromRESTProject(cloudID, genP)
+}
+
+func (c *JiraRESTClient) DeleteProject(ctx context.Context, projectKeyOrID string) error {
+	if projectKeyOrID == "" {
+		return fmt.Errorf("projectKeyOrID is required for delete")
+	}
+	return c.Delete(ctx, fmt.Sprintf("/rest/api/3/project/%s", projectKeyOrID))
 }

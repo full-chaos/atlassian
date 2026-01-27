@@ -225,6 +225,10 @@ func generate(doc map[string]any) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	pageVersionsRef, err := getOperationSchemaRef(doc, "/rest/api/3/project/{projectIdOrKey}/version", "get")
+	if err != nil {
+		return "", err
+	}
 
 	pageProjectsName, err := refName(pageProjectsRef)
 	if err != nil {
@@ -239,6 +243,10 @@ func generate(doc map[string]any) (string, error) {
 		return "", err
 	}
 	pageWorklogsName, err := refName(pageWorklogsRef)
+	if err != nil {
+		return "", err
+	}
+	pageVersionsName, err := refName(pageVersionsRef)
 	if err != nil {
 		return "", err
 	}
@@ -360,6 +368,27 @@ func generate(doc map[string]any) (string, error) {
 		return "", err
 	}
 
+	pageVersionsSchema, err := getSchema(doc, pageVersionsName)
+	if err != nil {
+		return "", err
+	}
+	vValuesProp, err := expectProperty(pageVersionsSchema, "values")
+	if err != nil {
+		return "", err
+	}
+	vItemsRaw, ok := vValuesProp["items"].(map[string]any)
+	if !ok {
+		return "", errors.New("PageBeanVersion.values.items missing or invalid")
+	}
+	versionRef, err := propertyRef(vItemsRaw)
+	if err != nil {
+		return "", err
+	}
+	versionName, err := refName(versionRef)
+	if err != nil {
+		return "", err
+	}
+
 	worklogSchema, err := getSchema(doc, worklogName)
 	if err != nil {
 		return "", err
@@ -405,6 +434,11 @@ func generate(doc map[string]any) (string, error) {
 	for _, prop := range []string{"id", "started", "timeSpentSeconds", "created", "updated", "author"} {
 		if _, err := expectProperty(mustSchema(doc, worklogName), prop); err != nil {
 			return "", fmt.Errorf("%s.%s missing: %w", worklogName, prop, err)
+		}
+	}
+	for _, prop := range []string{"id", "name", "projectId", "released"} {
+		if _, err := expectProperty(mustSchema(doc, versionName), prop); err != nil {
+			return "", fmt.Errorf("%s.%s missing: %w", versionName, prop, err)
 		}
 	}
 
@@ -486,7 +520,23 @@ func generate(doc map[string]any) (string, error) {
 	out.WriteString(fmt.Sprintf("\tWorklogs []%s `json:\"worklogs,omitempty\"`\n", worklogName))
 	out.WriteString("}\n\n")
 
-	for _, name := range []string{pageProjectsName, searchResultsName, pageChangelogName, pageWorklogsName} {
+	out.WriteString(fmt.Sprintf("type %s struct {\n", pageVersionsName))
+	out.WriteString("\tStartAt *int `json:\"startAt,omitempty\"`\n")
+	out.WriteString("\tMaxResults *int `json:\"maxResults,omitempty\"`\n")
+	out.WriteString("\tTotal *int `json:\"total,omitempty\"`\n")
+	out.WriteString("\tIsLast *bool `json:\"isLast,omitempty\"`\n")
+	out.WriteString(fmt.Sprintf("\tValues []%s `json:\"values,omitempty\"`\n", versionName))
+	out.WriteString("}\n\n")
+
+	out.WriteString(fmt.Sprintf("type %s struct {\n", versionName))
+	out.WriteString("\tID *string `json:\"id,omitempty\"`\n")
+	out.WriteString("\tName *string `json:\"name,omitempty\"`\n")
+	out.WriteString("\tProjectID *int `json:\"projectId,omitempty\"`\n")
+	out.WriteString("\tReleased *bool `json:\"released,omitempty\"`\n")
+	out.WriteString("\tReleaseDate *string `json:\"releaseDate,omitempty\"`\n")
+	out.WriteString("}\n\n")
+
+	for _, name := range []string{pageProjectsName, searchResultsName, pageChangelogName, pageWorklogsName, pageVersionsName} {
 		out.WriteString(fmt.Sprintf("func Decode%s(data map[string]any) (*%s, error) {\n", name, name))
 		out.WriteString("\tb, err := json.Marshal(data)\n")
 		out.WriteString("\tif err != nil {\n\t\treturn nil, err\n\t}\n")

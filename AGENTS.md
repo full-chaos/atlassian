@@ -1,8 +1,8 @@
-Below is a **plaintext `AGENTS.md`** suitable for committing at the repo root. It is written as an operating contract for humans and AI agents (Codex, Copilot, Claude, etc.) working on this codebase.
+# AGENTS.md — atlassian
 
----
-
-# AGENTS.md
+> **Canonical Reference:** See [`/AGENTS.md`](../AGENTS.md) for the unified Dev Health platform agent briefing.
+>
+> **Deep Dives:** See [`/docs/agent-instructions/connectors/atlassian-graphql.md`](../docs/agent-instructions/connectors/atlassian-graphql.md) for detailed AGG client documentation.
 
 ## Purpose
 
@@ -161,6 +161,20 @@ Convert API models → canonical analytics models.
 
 ---
 
+### 5. Terraform Provider (REST-Only)
+
+**Purpose:**
+Expose Jira data (projects, issues, etc.) as Terraform data sources and resources for lifecycle management (Read, Create, Update, Delete).
+
+**Rules:**
+
+* **REST-only:** Uses Jira REST API, not GraphQL.
+* **Generated models:** Uses generated REST models from `atlassian/rest/gen/`.
+* **Canonical alignment:** Must remain aligned with canonical schemas in `openapi/`.
+* **Location:** `atlassian/terraform/` (Provider: `registry.terraform.io/full-chaos/jira`)
+
+---
+
 ## Pagination Rules (Non-Negotiable)
 
 * Assume **every connection paginates**
@@ -272,6 +286,56 @@ Guessing is a failure.
 * Not a static schema wrapper
 * Not a Jira-only system
 * Not tolerant of silent data corruption
+
+---
+
+---
+
+## Task Tracking (bd + GitHub)
+
+> **Canonical Reference:** See [`/AGENTS.md`](../AGENTS.md#11-task-tracking-bd--github) for full documentation.
+
+**Project Board:** `https://github.com/orgs/full-chaos/projects/1`
+
+### Quick Reference
+
+```bash
+# bd (local task tracking)
+bd create "Task title" --priority P2 --external-ref gh-123
+bd list --status open
+bd status <id> in-progress
+bd status <id> done
+bd dep add <child-id> <parent-id> --type parent-child
+bd sync
+
+# GitHub issues (use labels, not --type)
+gh issue create --title "Title" --body "Description" --label task
+gh issue edit NNN --add-project "https://github.com/orgs/full-chaos/projects/1"
+```
+
+### Workflow
+
+1. Create bd issue with `--external-ref gh-NNN` to link to GitHub
+2. Update bd status during work
+3. Run `bd sync` before `git push`
+4. Close GitHub issue when complete
+
+### Session Completion
+
+**When ending a work session**, you MUST:
+
+1. **File issues** for remaining work
+2. **Run quality gates** (tests, linters)
+3. **Update issue status** (close finished, update in-progress)
+4. **PUSH TO REMOTE** (mandatory):
+
+   ```bash
+   git pull --rebase && bd sync && git push && git status
+   ```
+
+5. **Hand off** context for next session
+
+**Work is NOT complete until `git push` succeeds.**
 
 ---
 

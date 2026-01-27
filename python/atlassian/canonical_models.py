@@ -86,3 +86,19 @@ class OpsgenieTeamRef:
 class CanonicalProjectWithOpsgenieTeams:
     project: JiraProject
     opsgenie_teams: List[OpsgenieTeamRef] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class JiraBoard:
+    id: str
+    name: str
+    type: str  # scrum, kanban
+
+
+@dataclass(frozen=True)
+class JiraVersion:
+    id: str
+    name: str
+    project_key: str
+    released: bool
+    release_date: Optional[str] = None

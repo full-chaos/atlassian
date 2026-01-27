@@ -222,3 +222,137 @@ func (c *JiraRESTClient) GetJSON(ctx context.Context, path string, query map[str
 		return out, nil
 	}
 }
+
+func (c *JiraRESTClient) PostJSON(ctx context.Context, path string, data any) (map[string]any, error) {
+	return c.requestJSON(ctx, http.MethodPost, path, data)
+}
+
+func (c *JiraRESTClient) PutJSON(ctx context.Context, path string, data any) (map[string]any, error) {
+	return c.requestJSON(ctx, http.MethodPut, path, data)
+}
+
+func (c *JiraRESTClient) Delete(ctx context.Context, path string) error {
+	baseURL := strings.TrimRight(strings.TrimSpace(c.BaseURL), "/")
+	if baseURL == "" {
+		return errors.New("BaseURL is required")
+	}
+	cleanedPath := path
+	if !strings.HasPrefix(cleanedPath, "/") {
+		cleanedPath = "/" + cleanedPath
+	}
+	url := baseURL + cleanedPath
+
+	httpClient := c.HTTPClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: defaultTimeout}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+
+	ua := strings.TrimSpace(c.UserAgent)
+	if ua == "" {
+		ua = defaultJiraRESTUserAgent
+	}
+	req.Header.Set("User-Agent", ua)
+
+	if c.Auth != nil {
+		if err := c.Auth.Apply(req); err != nil {
+			return fmt.Errorf("apply auth: %w", err)
+		}
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return &atlassian.TransportError{
+			StatusCode:  resp.StatusCode,
+			BodySnippet: string(body),
+		}
+	}
+
+	return nil
+}
+
+func (c *JiraRESTClient) requestJSON(ctx context.Context, method, path string, data any) (map[string]any, error) {
+	baseURL := strings.TrimRight(strings.TrimSpace(c.BaseURL), "/")
+	if baseURL == "" {
+		return nil, errors.New("BaseURL is required")
+	}
+	cleanedPath := path
+	if !strings.HasPrefix(cleanedPath, "/") {
+		cleanedPath = "/" + cleanedPath
+	}
+	url := baseURL + cleanedPath
+
+	var bodyReader io.Reader
+	if data != nil {
+		b, err := json.Marshal(data)
+		if err != nil {
+			return nil, fmt.Errorf("marshal data: %w", err)
+		}
+		bodyReader = strings.NewReader(string(b))
+	}
+
+	httpClient := c.HTTPClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: defaultTimeout}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+
+	req.Header.Set("Accept", "application/json")
+	if data != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	ua := strings.TrimSpace(c.UserAgent)
+	if ua == "" {
+		ua = defaultJiraRESTUserAgent
+	}
+	req.Header.Set("User-Agent", ua)
+
+	if c.Auth != nil {
+		if err := c.Auth.Apply(req); err != nil {
+			return nil, fmt.Errorf("apply auth: %w", err)
+		}
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, fmt.Errorf("read response: %w", readErr)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, &atlassian.TransportError{
+			StatusCode:  resp.StatusCode,
+			BodySnippet: string(body),
+		}
+	}
+
+	if resp.StatusCode == http.StatusNoContent || len(body) == 0 {
+		return map[string]any{}, nil
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, &atlassian.JSONError{Err: err}
+	}
+	return out, nil
+}

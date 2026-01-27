@@ -30,7 +30,9 @@ def _build_field_list(
     story_points_field: Optional[str],
     sprint_ids_field: Optional[str],
 ) -> List[str]:
-    field_list = [f.strip() for f in (fields or _DEFAULT_SEARCH_FIELDS) if f and f.strip()]
+    field_list = [
+        f.strip() for f in (fields or _DEFAULT_SEARCH_FIELDS) if f and f.strip()
+    ]
     if not field_list:
         raise ValueError("fields must be non-empty")
     for raw in (story_points_field, sprint_ids_field):
@@ -84,7 +86,9 @@ def iter_issues_via_rest(
 
     while True:
         if start_at in seen_start_at:
-            raise SerializationError("Pagination startAt repeated; aborting to prevent infinite loop")
+            raise SerializationError(
+                "Pagination startAt repeated; aborting to prevent infinite loop"
+            )
         seen_start_at.add(start_at)
 
         payload = client.get_json(
@@ -154,7 +158,9 @@ def list_issues_via_rest(
     if sprint_ids_field is None:
         sprint_ids_field = _env_custom_field("ATLASSIAN_JIRA_SPRINT_IDS_FIELD")
 
-    with JiraRestClient(base_url, auth=auth, timeout_seconds=30.0, max_retries_429=1) as client:
+    with JiraRestClient(
+        base_url, auth=auth, timeout_seconds=30.0, max_retries_429=1
+    ) as client:
         yield from iter_issues_via_rest(
             client,
             cloud_id=cloud_id_clean,
@@ -164,3 +170,50 @@ def list_issues_via_rest(
             story_points_field=story_points_field,
             sprint_ids_field=sprint_ids_field,
         )
+
+
+def create_issue_via_rest(
+    cloud_id: str,
+    project_key: str,
+    summary: str,
+    issue_type: str = "Task",
+    description: Optional[str] = None,
+) -> JiraIssue:
+    auth = auth_from_env()
+    if auth is None:
+        raise ValueError("Missing credentials.")
+
+    base_url = jira_rest_base_url_from_env(cloud_id)
+    if not base_url:
+        raise ValueError("Missing Jira REST base URL.")
+
+    with JiraRestClient(base_url, auth=auth) as client:
+        data = {
+            "fields": {
+                "project": {"key": project_key},
+                "summary": summary,
+                "issuetype": {"name": issue_type},
+            }
+        }
+        if description:
+            data["fields"]["description"] = description
+
+        payload = client.post_json("/rest/api/3/issue", json_data=data)
+        issue_bean = api.IssueBean.from_dict(payload, "data")
+        return map_issue(cloud_id=cloud_id, issue=issue_bean)
+
+
+def delete_issue_via_rest(
+    cloud_id: str,
+    issue_key_or_id: str,
+) -> None:
+    auth = auth_from_env()
+    if auth is None:
+        raise ValueError("Missing credentials.")
+
+    base_url = jira_rest_base_url_from_env(cloud_id)
+    if not base_url:
+        raise ValueError("Missing Jira REST base URL.")
+
+    with JiraRestClient(base_url, auth=auth) as client:
+        client.delete(f"/rest/api/3/issue/{issue_key_or_id}")

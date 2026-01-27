@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterator, List, Optional, Sequence
+from typing import Iterator, List, Sequence
 
 from ...canonical_models import CanonicalProjectWithOpsgenieTeams, JiraProject
 from ...errors import SerializationError
@@ -42,7 +42,9 @@ def iter_projects_via_rest(
 
     while True:
         if start_at in seen_start_at:
-            raise SerializationError("Pagination startAt repeated; aborting to prevent infinite loop")
+            raise SerializationError(
+                "Pagination startAt repeated; aborting to prevent infinite loop"
+            )
         seen_start_at.add(start_at)
 
         payload = client.get_json(
@@ -53,7 +55,9 @@ def iter_projects_via_rest(
         values = page.values
 
         for item in values:
-            project: JiraProject = map_rest_project(cloud_id=cloud_id_clean, project=item)
+            project: JiraProject = map_rest_project(
+                cloud_id=cloud_id_clean, project=item
+            )
             if project.type is None:
                 continue
             if project.type not in normalized_types:
@@ -102,9 +106,57 @@ def list_projects_via_rest(
     if not base_url:
         raise ValueError(
             "Missing Jira REST base URL. Set ATLASSIAN_JIRA_BASE_URL, or "
-            "provide ATLASSIAN_CLOUD_ID with OAuth tokens (defaults to https://api.atlassian.com/ex/jira/{cloudId}), "
-            "or provide ATLASSIAN_GQL_BASE_URL for tenanted auth so it can be derived."
+            "provide ATLASSIAN_CLOUD_ID with OAuth tokens (defaults to "
+            "https://api.atlassian.com/ex/jira/{cloudId}), or provide "
+            "ATLASSIAN_GQL_BASE_URL for tenanted auth so it can be derived."
         )
 
-    with JiraRestClient(base_url, auth=auth, timeout_seconds=30.0, max_retries_429=1) as client:
-        yield from iter_projects_via_rest(client, cloud_id_clean, project_types, page_size)
+    with JiraRestClient(
+        base_url, auth=auth, timeout_seconds=30.0, max_retries_429=1
+    ) as client:
+        yield from iter_projects_via_rest(
+            client, cloud_id_clean, project_types, page_size
+        )
+
+
+def create_project_via_rest(
+    cloud_id: str,
+    project: JiraProject,
+) -> JiraProject:
+    auth = auth_from_env()
+    if auth is None:
+        raise ValueError("Missing credentials.")
+
+    base_url = jira_rest_base_url_from_env(cloud_id)
+    if not base_url:
+        raise ValueError("Missing Jira REST base URL.")
+
+    with JiraRestClient(base_url, auth=auth) as client:
+        data = {
+            "key": project.key,
+            "name": project.name,
+            "projectTypeKey": project.type or "software",
+            "leadAccountId": "...",  # Need more info or handle via terraform?
+        }
+        # In practice, and for Terraform automation, leadAccountId is often required.
+        # But maybe we just post what we have for now.
+        payload = client.post_json("/rest/api/3/project", json_data=data)
+        return map_rest_project(
+            cloud_id=cloud_id, project=api.Project.from_dict(payload, "data")
+        )
+
+
+def delete_project_via_rest(
+    cloud_id: str,
+    project_key_or_id: str,
+) -> None:
+    auth = auth_from_env()
+    if auth is None:
+        raise ValueError("Missing credentials.")
+
+    base_url = jira_rest_base_url_from_env(cloud_id)
+    if not base_url:
+        raise ValueError("Missing Jira REST base URL.")
+
+    with JiraRestClient(base_url, auth=auth) as client:
+        client.delete(f"/rest/api/3/project/{project_key_or_id}")

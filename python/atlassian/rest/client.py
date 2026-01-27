@@ -41,7 +41,11 @@ class JiraRestClient:
         self.max_wait_seconds = max(0, max_wait_seconds)
         self._logger = get_logger(logger)
         self._owns_client = http_client is None
-        self._client = http_client if http_client is not None else httpx.Client(timeout=timeout_seconds)
+        self._client = (
+            http_client
+            if http_client is not None
+            else httpx.Client(timeout=timeout_seconds)
+        )
         self._sleeper = sleeper if sleeper is not None else time.sleep
         self._now = (
             time_provider
@@ -59,9 +63,7 @@ class JiraRestClient:
         self.auth.apply(headers)
         return headers
 
-    def _parse_retry_after(
-        self, header_value: Optional[str]
-    ) -> Tuple[datetime, str]:
+    def _parse_retry_after(self, header_value: Optional[str]) -> Tuple[datetime, str]:
         if header_value is None:
             raise ValueError("Retry-After header is missing")
         candidate = header_value.strip()
@@ -88,10 +90,14 @@ class JiraRestClient:
         while True:
             attempt_number = retries + 1
             headers = self._build_headers()
-            cookies = self.auth.get_cookies() if hasattr(self.auth, "get_cookies") else None
+            cookies = (
+                self.auth.get_cookies() if hasattr(self.auth, "get_cookies") else None
+            )
             start = time.perf_counter()
             try:
-                response = self._client.get(url, headers=headers, params=params, cookies=cookies)
+                response = self._client.get(
+                    url, headers=headers, params=params, cookies=cookies
+                )
             except httpx.RequestError as exc:
                 self._logger.error("HTTP request failed", exc_info=exc)
                 raise TransportError(status_code=0, body_snippet=str(exc)) from exc
@@ -198,6 +204,77 @@ class JiraRestClient:
                 return body
             finally:
                 response.close()
+
+    def post_json(
+        self,
+        path: str,
+        *,
+        json_data: Optional[Dict] = None,
+    ) -> Dict:
+        return self._request_json("POST", path, json_data=json_data)
+
+    def put_json(
+        self,
+        path: str,
+        *,
+        json_data: Optional[Dict] = None,
+    ) -> Dict:
+        return self._request_json("PUT", path, json_data=json_data)
+
+    def delete(self, path: str) -> None:
+        cleaned_path = path if path.startswith("/") else f"/{path}"
+        url = f"{self.base_url}{cleaned_path}"
+        headers = self._build_headers()
+        cookies = self.auth.get_cookies() if hasattr(self.auth, "get_cookies") else None
+
+        try:
+            response = self._client.delete(url, headers=headers, cookies=cookies)
+            if response.status_code >= 400:
+                raise TransportError(
+                    status_code=response.status_code,
+                    body_snippet=response.text[:200],
+                )
+        except httpx.RequestError as exc:
+            raise TransportError(status_code=0, body_snippet=str(exc)) from exc
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_data: Optional[Dict] = None,
+    ) -> Dict:
+        if not path or not isinstance(path, str) or not path.strip():
+            raise ValueError("path is required")
+        cleaned_path = path if path.startswith("/") else f"/{path}"
+        url = f"{self.base_url}{cleaned_path}"
+
+        headers = self._build_headers()
+        cookies = self.auth.get_cookies() if hasattr(self.auth, "get_cookies") else None
+
+        try:
+            response = self._client.request(
+                method, url, headers=headers, json=json_data, cookies=cookies
+            )
+            if response.status_code >= 400:
+                raise TransportError(
+                    status_code=response.status_code,
+                    body_snippet=response.text[:200],
+                )
+
+            if response.status_code == 204 or not response.text:
+                return {}
+
+            try:
+                body = response.json()
+            except json.JSONDecodeError as exc:
+                raise SerializationError(f"Failed to parse JSON: {exc}") from exc
+
+            if not isinstance(body, dict):
+                raise SerializationError("Expected object JSON response")
+            return body
+        except httpx.RequestError as exc:
+            raise TransportError(status_code=0, body_snippet=str(exc)) from exc
 
     def close(self) -> None:
         if self._owns_client:
