@@ -160,8 +160,8 @@ func (p *JiraProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 
 func (p *JiraProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		// Resources would go here for CRUD operations
-		// Currently this provider is read-only (data sources only)
+		NewProjectResource,
+		NewVersionResource,
 	}
 }
 
@@ -169,6 +169,8 @@ func (p *JiraProvider) DataSources(ctx context.Context) []func() datasource.Data
 	return []func() datasource.DataSource{
 		NewProjectsDataSource,
 		NewIssuesDataSource,
+		NewSprintsDataSource,
+		NewWorklogsDataSource,
 	}
 }
 

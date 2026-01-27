@@ -11,6 +11,7 @@ This Terraform provider allows you to read Jira project and issue data using the
 
 1. Clone the repository
 2. Build the provider:
+
    ```shell
    cd terraform
    go build -o terraform-provider-jira
@@ -122,6 +123,68 @@ output "bugs" {
   - `labels` - Labels assigned to the issue
   - `components` - Components assigned to the issue
   - `story_points` - Story points assigned to the issue, if applicable
+
+### jira_sprints
+
+Fetches Jira sprints for a given Agile board.
+
+```hcl
+data "jira_sprints" "active" {
+  board_id = 123
+  state    = "active"
+}
+
+output "sprint_names" {
+  value = [for s in data.jira_sprints.active.sprints : s.name]
+}
+```
+
+#### Arguments
+
+- `cloud_id` (Optional) - Override the provider's cloud ID
+- `board_id` (Required) - The ID of the Jira Agile board
+- `state` (Optional) - Filter by state: `active`, `future`, `closed`
+
+#### Attributes
+
+- `sprints` - List of sprints with the following attributes:
+  - `id` - The sprint ID
+  - `name` - The sprint name
+  - `state` - The sprint state
+  - `start_at` - Start timestamp (RFC3339)
+  - `end_at` - End timestamp (RFC3339)
+  - `complete_at` - Completion timestamp (RFC3339)
+
+### jira_worklogs
+
+Fetches worklogs for a specific Jira issue.
+
+```hcl
+data "jira_worklogs" "issue_logs" {
+  issue_key = "PROJ-123"
+}
+
+output "total_time_spent" {
+  value = sum([for w in data.jira_worklogs.issue_logs.worklogs : w.time_spent_seconds])
+}
+```
+
+#### Arguments
+
+- `cloud_id` (Optional) - Override the provider's cloud ID
+- `issue_key` (Required) - The Jira issue key (e.g., "PROJ-123")
+
+#### Attributes
+
+- `worklogs` - List of worklogs with the following attributes:
+  - `issue_key` - The issue key
+  - `worklog_id` - The worklog ID
+  - `author_account_id` - The author's Atlassian account ID
+  - `author_name` - The author's display name
+  - `started_at` - When the work started (RFC3339)
+  - `time_spent_seconds` - Time spent in seconds
+  - `created_at` - Creation timestamp (RFC3339)
+  - `updated_at` - Update timestamp (RFC3339)
 
 ## Example Usage
 

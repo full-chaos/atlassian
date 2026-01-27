@@ -248,3 +248,23 @@ components:
             $ref: '#/components/schemas/OpsgenieTeamRef'
       additionalProperties: false
 
+    JiraBoard:
+      type: object
+      required: [id, name, type]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string, enum: [scrum, kanban] }
+      additionalProperties: false
+
+    JiraVersion:
+      type: object
+      required: [id, name, projectKey]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        projectKey: { type: string }
+        released: { type: boolean }
+        releaseDate: { type: string, format: date-time, nullable: true }
+      additionalProperties: false
+

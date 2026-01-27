@@ -55,13 +55,19 @@ def _get_operation_schema_ref(doc: Dict[str, Any], *, path: str, method: str) ->
         raise ValueError(f"OpenAPI operation not found: {method.upper()} {path}")
     responses = op.get("responses")
     if not isinstance(responses, dict):
-        raise ValueError(f"OpenAPI operation missing responses: {method.upper()} {path}")
+        raise ValueError(
+            f"OpenAPI operation missing responses: {method.upper()} {path}"
+        )
     resp = responses.get("200")
     if not isinstance(resp, dict):
-        raise ValueError(f"OpenAPI operation missing 200 response: {method.upper()} {path}")
+        raise ValueError(
+            f"OpenAPI operation missing 200 response: {method.upper()} {path}"
+        )
     content = resp.get("content")
     if not isinstance(content, dict):
-        raise ValueError(f"OpenAPI 200 response missing content: {method.upper()} {path}")
+        raise ValueError(
+            f"OpenAPI 200 response missing content: {method.upper()} {path}"
+        )
     app_json = content.get("application/json")
     if not isinstance(app_json, dict):
         raise ValueError(
@@ -80,7 +86,9 @@ def _get_operation_schema_ref(doc: Dict[str, Any], *, path: str, method: str) ->
     return ref
 
 
-def _expect_property(schema: Dict[str, Any], prop: str, *, type_: Optional[str] = None) -> Dict[str, Any]:
+def _expect_property(
+    schema: Dict[str, Any], prop: str, *, type_: Optional[str] = None
+) -> Dict[str, Any]:
     properties = schema.get("properties")
     if not isinstance(properties, dict):
         raise ValueError("Schema missing properties")
@@ -90,7 +98,9 @@ def _expect_property(schema: Dict[str, Any], prop: str, *, type_: Optional[str] 
     if type_ is not None:
         found = raw.get("type")
         if found != type_:
-            raise ValueError(f"Property {prop!r} expected type={type_!r}, got {found!r}")
+            raise ValueError(
+                f"Property {prop!r} expected type={type_!r}, got {found!r}"
+            )
     return raw
 
 
@@ -110,12 +120,17 @@ def _generate(doc: Dict[str, Any]) -> str:
     page_projects_ref = _get_operation_schema_ref(
         doc, path="/rest/api/3/project/search", method="get"
     )
-    search_results_ref = _get_operation_schema_ref(doc, path="/rest/api/3/search", method="get")
+    search_results_ref = _get_operation_schema_ref(
+        doc, path="/rest/api/3/search", method="get"
+    )
     page_changelog_ref = _get_operation_schema_ref(
         doc, path="/rest/api/3/issue/{issueIdOrKey}/changelog", method="get"
     )
     page_worklogs_ref = _get_operation_schema_ref(
         doc, path="/rest/api/3/issue/{issueIdOrKey}/worklog", method="get"
+    )
+    page_versions_ref = _get_operation_schema_ref(
+        doc, path="/rest/api/3/project/{projectIdOrKey}/version", method="get"
     )
 
     page_projects_name = _ref_name(page_projects_ref)
@@ -163,13 +178,22 @@ def _generate(doc: Dict[str, Any]) -> str:
             f"Worklog.author expected {user_details_name} but got {_ref_name(worklog_author_ref)}"
         )
 
+    page_versions_name = _ref_name(page_versions_ref)
+    page_versions_schema = _get_schema(doc, page_versions_name)
+    version_items_ref = _property_ref(
+        _expect_property(page_versions_schema, "values", type_="array")["items"]
+    )
+    version_name = _ref_name(version_items_ref)
+
     # Ensure the properties we rely on exist in the derived schemas.
     for prop in ("startAt", "maxResults", "total"):
         _expect_property(_get_schema(doc, page_worklogs_name), prop)
     for prop in ("key", "name", "projectTypeKey"):
         _expect_property(_get_schema(doc, project_name), prop)
     for prop in ("id", "key", "fields"):
-        _expect_property(_get_schema(doc, issue_name), prop if prop != "fields" else "fields")
+        _expect_property(
+            _get_schema(doc, issue_name), prop if prop != "fields" else "fields"
+        )
     for prop in ("id", "created", "items"):
         _expect_property(_get_schema(doc, changelog_name), prop)
     for prop in ("field", "from", "to", "fromString", "toString"):
@@ -178,6 +202,10 @@ def _generate(doc: Dict[str, Any]) -> str:
         _expect_property(_get_schema(doc, user_details_name), prop)
     for prop in ("id", "started", "timeSpentSeconds", "created", "updated", "author"):
         _expect_property(_get_schema(doc, worklog_name), prop)
+    for prop in ("id", "name", "projectId", "released"):
+        _expect_property(_get_schema(doc, version_name), prop)
+    for prop in ("startAt", "maxResults", "total", "values"):
+        _expect_property(_get_schema(doc, page_versions_name), prop)
 
     # Deterministic output. Do not import this module from the generator.
     header = (
@@ -602,6 +630,90 @@ class {page_worklogs_name}:
 """
     )
 
+    # PageBeanVersion
+    models.append(
+        f"""\
+@dataclass(frozen=True)
+class {page_versions_name}:
+    start_at: Optional[int]
+    max_results: Optional[int]
+    total: Optional[int]
+    is_last: Optional[bool]
+    values: List[{version_name}]
+
+    @staticmethod
+    def from_dict(obj: Any, path: str) -> "{page_versions_name}":
+        raw = _expect_dict(obj, path)
+        start_at: Optional[int] = None
+        if raw.get("startAt") is not None:
+            start_at = _expect_int(raw.get("startAt"), f"{{path}}.startAt")
+        max_results: Optional[int] = None
+        if raw.get("maxResults") is not None:
+            max_results = _expect_int(raw.get("maxResults"), f"{{path}}.maxResults")
+        total: Optional[int] = None
+        if raw.get("total") is not None:
+            total = _expect_int(raw.get("total"), f"{{path}}.total")
+        is_last: Optional[bool] = None
+        if raw.get("isLast") is not None:
+            is_last = _expect_bool(raw.get("isLast"), f"{{path}}.isLast")
+        values_raw = raw.get("values")
+        values_list = _expect_list(values_raw, f"{{path}}.values") if values_raw is not None else []
+        values = [
+            {version_name}.from_dict(item, f"{{path}}.values[{{idx}}]")
+            for idx, item in enumerate(values_list)
+        ]
+        return {page_versions_name}(
+            start_at=start_at,
+            max_results=max_results,
+            total=total,
+            is_last=is_last,
+            values=values,
+        )
+
+"""
+    )
+
+    # Version
+    models.append(
+        f"""\
+@dataclass(frozen=True)
+class {version_name}:
+    id: Optional[str]
+    name: Optional[str]
+    project_id: Optional[int] = None
+    released: Optional[bool] = None
+    release_date: Optional[str] = None
+
+    @staticmethod
+    def from_dict(obj: Any, path: str) -> "{version_name}":
+        raw = _expect_dict(obj, path)
+        version_id: Optional[str] = None
+        if raw.get("id") is not None:
+            version_id = _expect_str(raw.get("id"), f"{{path}}.id")
+        name: Optional[str] = None
+        if raw.get("name") is not None:
+            name = _expect_str(raw.get("name"), f"{{path}}.name")
+        project_id: Optional[int] = None
+        if raw.get("projectId") is not None:
+            project_id = _expect_int(raw.get("projectId"), f"{{path}}.projectId")
+        released: Optional[bool] = None
+        if raw.get("released") is not None:
+            released = _expect_bool(raw.get("released"), f"{{path}}.released")
+        release_date: Optional[str] = None
+        if raw.get("releaseDate") is not None:
+            # Versions can have date-only strings "2010-07-06"
+            release_date = _expect_str(raw.get("releaseDate"), f"{{path}}.releaseDate")
+        return {version_name}(
+            id=version_id,
+            name=name,
+            project_id=project_id,
+            released=released,
+            release_date=release_date,
+        )
+
+"""
+    )
+
     return header + helpers + "\n".join(models)
 
 
@@ -619,7 +731,9 @@ def _parse_args() -> Args:
     parser = argparse.ArgumentParser(
         description="Generate minimal Jira REST API models from the Jira Cloud OpenAPI spec."
     )
-    parser.add_argument("--spec", default=str(default_spec), help="Path to swagger-v3 JSON")
+    parser.add_argument(
+        "--spec", default=str(default_spec), help="Path to swagger-v3 JSON"
+    )
     parser.add_argument("--out", default=str(default_out), help="Output .py file path")
     ns = parser.parse_args()
     return Args(spec=Path(ns.spec), out=Path(ns.out))

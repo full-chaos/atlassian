@@ -76,6 +76,22 @@ type PageOfWorklogs struct {
 	Worklogs   []Worklog `json:"worklogs,omitempty"`
 }
 
+type PageBeanVersion struct {
+	StartAt    *int      `json:"startAt,omitempty"`
+	MaxResults *int      `json:"maxResults,omitempty"`
+	Total      *int      `json:"total,omitempty"`
+	IsLast     *bool     `json:"isLast,omitempty"`
+	Values     []Version `json:"values,omitempty"`
+}
+
+type Version struct {
+	ID          *string `json:"id,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	ProjectID   *int    `json:"projectId,omitempty"`
+	Released    *bool   `json:"released,omitempty"`
+	ReleaseDate *string `json:"releaseDate,omitempty"`
+}
+
 func DecodePageBeanProject(data map[string]any) (*PageBeanProject, error) {
 	b, err := json.Marshal(data)
 	if err != nil {
@@ -118,6 +134,18 @@ func DecodePageOfWorklogs(data map[string]any) (*PageOfWorklogs, error) {
 		return nil, err
 	}
 	var out PageOfWorklogs
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func DecodePageBeanVersion(data map[string]any) (*PageBeanVersion, error) {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	var out PageBeanVersion
 	if err := json.Unmarshal(b, &out); err != nil {
 		return nil, err
 	}

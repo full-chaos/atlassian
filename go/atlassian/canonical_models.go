@@ -74,3 +74,17 @@ type CanonicalProjectWithOpsgenieTeams struct {
 	Project       JiraProject       `json:"project"`
 	OpsgenieTeams []OpsgenieTeamRef `json:"opsgenieTeams"`
 }
+
+type JiraBoard struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+type JiraVersion struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	ProjectKey  string  `json:"projectKey"`
+	Released    bool    `json:"released"`
+	ReleaseDate *string `json:"releaseDate,omitempty"`
+}

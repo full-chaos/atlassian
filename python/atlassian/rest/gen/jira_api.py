@@ -364,3 +364,77 @@ class PageOfWorklogs:
             worklogs=worklogs,
         )
 
+
+@dataclass(frozen=True)
+class PageBeanVersion:
+    start_at: Optional[int]
+    max_results: Optional[int]
+    total: Optional[int]
+    is_last: Optional[bool]
+    values: List[Version]
+
+    @staticmethod
+    def from_dict(obj: Any, path: str) -> "PageBeanVersion":
+        raw = _expect_dict(obj, path)
+        start_at: Optional[int] = None
+        if raw.get("startAt") is not None:
+            start_at = _expect_int(raw.get("startAt"), f"{path}.startAt")
+        max_results: Optional[int] = None
+        if raw.get("maxResults") is not None:
+            max_results = _expect_int(raw.get("maxResults"), f"{path}.maxResults")
+        total: Optional[int] = None
+        if raw.get("total") is not None:
+            total = _expect_int(raw.get("total"), f"{path}.total")
+        is_last: Optional[bool] = None
+        if raw.get("isLast") is not None:
+            is_last = _expect_bool(raw.get("isLast"), f"{path}.isLast")
+        values_raw = raw.get("values")
+        values_list = _expect_list(values_raw, f"{path}.values") if values_raw is not None else []
+        values = [
+            Version.from_dict(item, f"{path}.values[{idx}]")
+            for idx, item in enumerate(values_list)
+        ]
+        return PageBeanVersion(
+            start_at=start_at,
+            max_results=max_results,
+            total=total,
+            is_last=is_last,
+            values=values,
+        )
+
+
+@dataclass(frozen=True)
+class Version:
+    id: Optional[str]
+    name: Optional[str]
+    project_id: Optional[int] = None
+    released: Optional[bool] = None
+    release_date: Optional[str] = None
+
+    @staticmethod
+    def from_dict(obj: Any, path: str) -> "Version":
+        raw = _expect_dict(obj, path)
+        version_id: Optional[str] = None
+        if raw.get("id") is not None:
+            version_id = _expect_str(raw.get("id"), f"{path}.id")
+        name: Optional[str] = None
+        if raw.get("name") is not None:
+            name = _expect_str(raw.get("name"), f"{path}.name")
+        project_id: Optional[int] = None
+        if raw.get("projectId") is not None:
+            project_id = _expect_int(raw.get("projectId"), f"{path}.projectId")
+        released: Optional[bool] = None
+        if raw.get("released") is not None:
+            released = _expect_bool(raw.get("released"), f"{path}.released")
+        release_date: Optional[str] = None
+        if raw.get("releaseDate") is not None:
+            # Versions can have date-only strings "2010-07-06"
+            release_date = _expect_str(raw.get("releaseDate"), f"{path}.releaseDate")
+        return Version(
+            id=version_id,
+            name=name,
+            project_id=project_id,
+            released=released,
+            release_date=release_date,
+        )
+
