@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "setuptools_scm[toml]>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "atlassian-gen-client"
-version = "0.1.0"
+dynamic = ["version"]
 description = " Atlassian GraphQL client for Python"
 authors = [{ name = "Chris George" }]
 requires-python = ">=3.9"
@@ -12,3 +12,10 @@ dependencies = ["httpx>=0.27", "pytest>=7.0", "graphql-core>=3.2"]
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"
+local_scheme = "no-local-version"
+tag_regex = "^v(?P<version>\\d+\\.\\d+\\.\\d+(?:(?:a\\d+|b\\d+|rc\\d+)|(?:-alpha\\.\\d+|-beta\\.\\d+|-rc\\.\\d+))?)$"
+root = ".."
+relative_to = "pyproject.toml"
