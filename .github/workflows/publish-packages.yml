@@ -12,11 +12,12 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   python-package:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,12 +43,9 @@ jobs:
         working-directory: python
         run: python -m build
 
-      - name: Publish to GitHub Packages (PyPI)
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          repository-url: https://pypi.pkg.github.com/${{ github.repository_owner }}/atlassian-client
-          user: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
           packages-dir: python/dist/
 
   go-package:
