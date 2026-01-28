@@ -77,7 +77,7 @@ def _build_auth_from_env():
         if client_secret and token.strip() == client_secret.strip():
             raise ValueError(
                 "ATLASSIAN_OAUTH_ACCESS_TOKEN appears to be set to ATLASSIAN_CLIENT_SECRET; "
-                "set an OAuth access token (not the client secret)."
+                "set an actual OAuth access token (not the client secret)."
             )
         return OAuthBearerAuth(lambda: token)
     if email and api_token:
@@ -122,7 +122,9 @@ def _types_map(schema: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     return out
 
 
-def _unwrap_named_type(type_ref: Dict[str, Any]) -> Tuple[Optional[str], Optional[str], Dict[str, Any]]:
+def _unwrap_named_type(
+    type_ref: Dict[str, Any],
+) -> Tuple[Optional[str], Optional[str], Dict[str, Any]]:
     cur = type_ref
     for _ in range(16):
         if not isinstance(cur, dict):
@@ -192,7 +194,14 @@ def _discover_config(schema: Dict[str, Any]) -> _Config:
         raise RuntimeError("Unable to resolve type of sprintById")
     sprint_def = _require_type(types, sprint_type_name)
 
-    for field_name in ("sprintId", "name", "state", "startDate", "endDate", "completionDate"):
+    for field_name in (
+        "sprintId",
+        "name",
+        "state",
+        "startDate",
+        "endDate",
+        "completionDate",
+    ):
         _require_field(sprint_def, field_name, f"type {sprint_type_name}.fields")
 
     return _Config(sprint_type_name=sprint_type_name)
@@ -212,28 +221,28 @@ SPRINT_TYPE_NAME = "{cfg.sprint_type_name}"
 
 JIRA_SPRINT_BY_ID_QUERY = \"\"\"query JiraSprintById(
   $id: ID!
-) {{
-  sprintById(id: $id) {{
+) {{{{
+  sprintById(id: $id) {{{{
     sprintId
     name
     state
     startDate
     endDate
     completionDate
-  }}
-}}
+  }}}}
+}}}}
 \"\"\"
 
 
 def _expect_dict(obj: Any, path: str) -> Dict[str, Any]:
     if not isinstance(obj, dict):
-        raise SerializationError(f\"Expected object at {path}\")
+        raise SerializationError(f"Expected object at {{path}}")
     return obj
 
 
 def _expect_str(obj: Any, path: str) -> str:
     if not isinstance(obj, str):
-        raise SerializationError(f\"Expected string at {path}\")
+        raise SerializationError(f"Expected string at {{path}}")
     return obj
 
 
@@ -241,9 +250,9 @@ def _expect_optional_str(obj: Any, path: str) -> Optional[str]:
     if obj is None:
         return None
     if not isinstance(obj, str):
-        raise SerializationError(f\"Expected string at {path}\")
+        raise SerializationError(f"Expected string at {{path}}")
     if not obj:
-        raise SerializationError(f\"Expected non-empty string at {path}\")
+        raise SerializationError(f"Expected non-empty string at {{path}}")
     return obj
 
 
@@ -257,41 +266,46 @@ class JiraSprintNode:
     completion_date: Optional[str]
 
     @staticmethod
-    def from_dict(obj: Any, path: str) -> \"JiraSprintNode\":
+    def from_dict(obj: Any, path: str) -> "JiraSprintNode":
         raw = _expect_dict(obj, path)
         return JiraSprintNode(
-            sprint_id=_expect_str(raw.get(\"sprintId\"), f\"{path}.sprintId\"),
-            name=_expect_optional_str(raw.get(\"name\"), f\"{path}.name\"),
-            state=_expect_optional_str(raw.get(\"state\"), f\"{path}.state\"),
-            start_date=_expect_optional_str(raw.get(\"startDate\"), f\"{path}.startDate\"),
-            end_date=_expect_optional_str(raw.get(\"endDate\"), f\"{path}.endDate\"),
-            completion_date=_expect_optional_str(raw.get(\"completionDate\"), f\"{path}.completionDate\"),
+            sprint_id=_expect_str(raw.get("sprintId"), f"{{path}}.sprintId"),
+            name=_expect_optional_str(raw.get("name"), f"{{path}}.name"),
+            state=_expect_optional_str(raw.get("state"), f"{{path}}.state"),
+            start_date=_expect_optional_str(raw.get("startDate"), f"{{path}}.startDate"),
+            end_date=_expect_optional_str(raw.get("endDate"), f"{{path}}.endDate"),
+            completion_date=_expect_optional_str(raw.get("completionDate"), f"{{path}}.completionDate"),
         )
 
 
 def parse_jira_sprint_by_id(data: Any) -> JiraSprintNode:
-    root = _expect_dict(data, \"data\")
-    sprint = root.get(\"sprintById\")
+    root = _expect_dict(data, "data")
+    sprint = root.get("sprintById")
     if sprint is None:
-        raise SerializationError(\"Missing data.sprintById\")
-    return JiraSprintNode.from_dict(sprint, \"data.sprintById\")
+        raise SerializationError("Missing data.sprintById")
+    return JiraSprintNode.from_dict(sprint, "data.sprintById")
 """
 
 
 def main() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    token_file = Path(os.getenv("ATLASSIAN_OAUTH_TOKEN_FILE", repo_root / "oauth_tokens.txt"))
+    token_file = Path(
+        os.getenv("ATLASSIAN_OAUTH_TOKEN_FILE", repo_root / "oauth_tokens.txt")
+    )
     _load_env_file(token_file)
 
     schema_path = repo_root / "graphql" / "schema.introspection.json"
     if not schema_path.exists():
         base_url = os.getenv("ATLASSIAN_GQL_BASE_URL")
         if not base_url and (
-            os.getenv("ATLASSIAN_OAUTH_ACCESS_TOKEN") or os.getenv("ATLASSIAN_OAUTH_REFRESH_TOKEN")
+            os.getenv("ATLASSIAN_OAUTH_ACCESS_TOKEN")
+            or os.getenv("ATLASSIAN_OAUTH_REFRESH_TOKEN")
         ):
             base_url = "https://api.atlassian.com"
         if not base_url:
-            raise RuntimeError(f"Missing {schema_path} and ATLASSIAN_GQL_BASE_URL not set")
+            raise RuntimeError(
+                f"Missing {schema_path} and ATLASSIAN_GQL_BASE_URL not set"
+            )
         auth = _build_auth_from_env()
         if auth is None:
             raise RuntimeError("No credentials available in env vars to fetch schema")
@@ -305,7 +319,9 @@ def main() -> None:
     schema = _load_introspection(schema_path)
     cfg = _discover_config(schema)
 
-    out_path = repo_root / "python" / "atlassian" / "graph" / "gen" / "jira_sprints_api.py"
+    out_path = (
+        repo_root / "python" / "atlassian" / "graph" / "gen" / "jira_sprints_api.py"
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(_render_python(cfg), encoding="utf-8")
     print(f"Wrote {out_path}")

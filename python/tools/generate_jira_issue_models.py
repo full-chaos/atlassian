@@ -78,7 +78,7 @@ def _build_auth_from_env():
         if client_secret and token.strip() == client_secret.strip():
             raise ValueError(
                 "ATLASSIAN_OAUTH_ACCESS_TOKEN appears to be set to ATLASSIAN_CLIENT_SECRET; "
-                "set an OAuth access token (not the client secret)."
+                "set an actual OAuth access token (not the client secret)."
             )
         return OAuthBearerAuth(lambda: token)
     if email and api_token:
@@ -123,7 +123,9 @@ def _types_map(schema: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     return out
 
 
-def _unwrap_named_type(type_ref: Dict[str, Any]) -> Tuple[Optional[str], Optional[str], Dict[str, Any]]:
+def _unwrap_named_type(
+    type_ref: Dict[str, Any],
+) -> Tuple[Optional[str], Optional[str], Dict[str, Any]]:
     cur = type_ref
     for _ in range(16):
         if not isinstance(cur, dict):
@@ -194,31 +196,53 @@ def _discover_config(schema: Dict[str, Any]) -> _Config:
         raise RuntimeError("Unable to resolve type of issueByKey")
     issue_def = _require_type(types, issue_type_name)
 
-    issue_type_field = _require_field(issue_def, "issueType", f"type {issue_type_name}.fields")
-    issue_type_def = _require_type(types, _unwrap_named_type(issue_type_field.get("type") or {})[0] or "")
+    issue_type_field = _require_field(
+        issue_def, "issueType", f"type {issue_type_name}.fields"
+    )
+    issue_type_def = _require_type(
+        types, _unwrap_named_type(issue_type_field.get("type") or {})[0] or ""
+    )
     _require_field(issue_type_def, "name", f"type {issue_type_def.get('name')}.fields")
 
     status_field = _require_field(issue_def, "status", f"type {issue_type_name}.fields")
-    status_def = _require_type(types, _unwrap_named_type(status_field.get("type") or {})[0] or "")
+    status_def = _require_type(
+        types, _unwrap_named_type(status_field.get("type") or {})[0] or ""
+    )
     _require_field(status_def, "name", f"type {status_def.get('name')}.fields")
 
-    project_field = _require_field(issue_def, "projectField", f"type {issue_type_name}.fields")
-    project_field_def = _require_type(types, _unwrap_named_type(project_field.get("type") or {})[0] or "")
-    project_field_project = _require_field(project_field_def, "project", f"type {project_field_def.get('name')}.fields")
-    project_def = _require_type(types, _unwrap_named_type(project_field_project.get("type") or {})[0] or "")
+    project_field = _require_field(
+        issue_def, "projectField", f"type {issue_type_name}.fields"
+    )
+    project_field_def = _require_type(
+        types, _unwrap_named_type(project_field.get("type") or {})[0] or ""
+    )
+    project_field_project = _require_field(
+        project_field_def, "project", f"type {project_field_def.get('name')}.fields"
+    )
+    project_def = _require_type(
+        types, _unwrap_named_type(project_field_project.get("type") or {})[0] or ""
+    )
     _require_field(project_def, "key", f"type {project_def.get('name')}.fields")
     _require_field(project_def, "cloudId", f"type {project_def.get('name')}.fields")
 
     for dt_field in ("createdField", "updatedField", "resolutionDateField"):
         dt_def = _require_field(issue_def, dt_field, f"type {issue_type_name}.fields")
-        dt_type = _require_type(types, _unwrap_named_type(dt_def.get("type") or {})[0] or "")
+        dt_type = _require_type(
+            types, _unwrap_named_type(dt_def.get("type") or {})[0] or ""
+        )
         _require_field(dt_type, "dateTime", f"type {dt_type.get('name')}.fields")
 
-    assignee_field = _require_field(issue_def, "assigneeField", f"type {issue_type_name}.fields")
-    assignee_def = _require_type(types, _unwrap_named_type(assignee_field.get("type") or {})[0] or "")
+    assignee_field = _require_field(
+        issue_def, "assigneeField", f"type {issue_type_name}.fields"
+    )
+    assignee_def = _require_type(
+        types, _unwrap_named_type(assignee_field.get("type") or {})[0] or ""
+    )
     _require_field(assignee_def, "user", f"type {assignee_def.get('name')}.fields")
 
-    reporter_field = _require_field(issue_def, "reporter", f"type {issue_type_name}.fields")
+    reporter_field = _require_field(
+        issue_def, "reporter", f"type {issue_type_name}.fields"
+    )
     user_type_name, _, _ = _unwrap_named_type(reporter_field.get("type") or {})
     if not user_type_name:
         raise RuntimeError("Unable to resolve reporter user type")
@@ -246,35 +270,35 @@ USER_TYPE_NAME = "{cfg.user_type_name}"
 JIRA_ISSUE_BY_KEY_QUERY = \"\"\"query JiraIssueByKey(
   $cloudId: ID!,
   $key: String!
-) {{
-  issueByKey(key: $key, cloudId: $cloudId) {{
+) {{{{
+  issueByKey(key: $key, cloudId: $cloudId) {{{{
     key
-    issueType {{ name }}
-    status {{ name }}
-    projectField {{
-      project {{ key cloudId }}
-    }}
-    createdField {{ dateTime }}
-    updatedField {{ dateTime }}
-    resolutionDateField {{ dateTime }}
-    assigneeField {{
-      user {{ accountId name }}
-    }}
-    reporter {{ accountId name }}
-  }}
-}}
+    issueType {{{{ name }}}}
+    status {{{{ name }}}}
+    projectField {{{{
+      project {{{{ key cloudId }}}}
+    }}}}
+    createdField {{{{ dateTime }}}}
+    updatedField {{{{ dateTime }}}}
+    resolutionDateField {{{{ dateTime }}}}
+    assigneeField {{{{
+      user {{{{ accountId name }}}}
+    }}}}
+    reporter {{{{ accountId name }}}}
+  }}}}
+}}}}
 \"\"\"
 
 
 def _expect_dict(obj: Any, path: str) -> Dict[str, Any]:
     if not isinstance(obj, dict):
-        raise SerializationError(f\"Expected object at {path}\")
+        raise SerializationError(f"Expected object at {{path}}")
     return obj
 
 
 def _expect_str(obj: Any, path: str) -> str:
     if not isinstance(obj, str):
-        raise SerializationError(f\"Expected string at {path}\")
+        raise SerializationError(f"Expected string at {{path}}")
     return obj
 
 
@@ -282,9 +306,9 @@ def _expect_optional_str(obj: Any, path: str) -> Optional[str]:
     if obj is None:
         return None
     if not isinstance(obj, str):
-        raise SerializationError(f\"Expected string at {path}\")
+        raise SerializationError(f"Expected string at {{path}}")
     if not obj:
-        raise SerializationError(f\"Expected non-empty string at {path}\")
+        raise SerializationError(f"Expected non-empty string at {{path}}")
     return obj
 
 
@@ -294,11 +318,11 @@ class JiraUser:
     name: str
 
     @staticmethod
-    def from_dict(obj: Any, path: str) -> \"JiraUser\":
+    def from_dict(obj: Any, path: str) -> "JiraUser":
         raw = _expect_dict(obj, path)
         return JiraUser(
-            account_id=_expect_str(raw.get(\"accountId\"), f\"{path}.accountId\"),
-            name=_expect_str(raw.get(\"name\"), f\"{path}.name\"),
+            account_id=_expect_str(raw.get("accountId"), f"{{path}}.accountId"),
+            name=_expect_str(raw.get("name"), f"{{path}}.name"),
         )
 
 
@@ -307,9 +331,9 @@ class JiraIssueType:
     name: str
 
     @staticmethod
-    def from_dict(obj: Any, path: str) -> \"JiraIssueType\":
+    def from_dict(obj: Any, path: str) -> "JiraIssueType":
         raw = _expect_dict(obj, path)
-        return JiraIssueType(name=_expect_str(raw.get(\"name\"), f\"{path}.name\"))
+        return JiraIssueType(name=_expect_str(raw.get("name"), f"{{path}}.name"))
 
 
 @dataclass(frozen=True)
@@ -317,9 +341,9 @@ class JiraStatus:
     name: str
 
     @staticmethod
-    def from_dict(obj: Any, path: str) -> \"JiraStatus\":
+    def from_dict(obj: Any, path: str) -> "JiraStatus":
         raw = _expect_dict(obj, path)
-        return JiraStatus(name=_expect_str(raw.get(\"name\"), f\"{path}.name\"))
+        return JiraStatus(name=_expect_str(raw.get("name"), f"{{path}}.name"))
 
 
 @dataclass(frozen=True)
@@ -328,11 +352,11 @@ class JiraProject:
     cloud_id: str
 
     @staticmethod
-    def from_dict(obj: Any, path: str) -> \"JiraProject\":
+    def from_dict(obj: Any, path: str) -> "JiraProject":
         raw = _expect_dict(obj, path)
         return JiraProject(
-            key=_expect_str(raw.get(\"key\"), f\"{path}.key\"),
-            cloud_id=_expect_str(raw.get(\"cloudId\"), f\"{path}.cloudId\"),
+            key=_expect_str(raw.get("key"), f"{{path}}.key"),
+            cloud_id=_expect_str(raw.get("cloudId"), f"{{path}}.cloudId"),
         )
 
 
@@ -341,10 +365,10 @@ class JiraProjectField:
     project: JiraProject
 
     @staticmethod
-    def from_dict(obj: Any, path: str) -> \"JiraProjectField\":
+    def from_dict(obj: Any, path: str) -> "JiraProjectField":
         raw = _expect_dict(obj, path)
         return JiraProjectField(
-            project=JiraProject.from_dict(raw.get(\"project\"), f\"{path}.project\"),
+            project=JiraProject.from_dict(raw.get("project"), f"{{path}}.project"),
         )
 
 
@@ -353,10 +377,10 @@ class JiraDateTimePickerField:
     date_time: Optional[str]
 
     @staticmethod
-    def from_dict(obj: Any, path: str) -> \"JiraDateTimePickerField\":
+    def from_dict(obj: Any, path: str) -> "JiraDateTimePickerField":
         raw = _expect_dict(obj, path)
         return JiraDateTimePickerField(
-            date_time=_expect_optional_str(raw.get(\"dateTime\"), f\"{path}.dateTime\")
+            date_time=_expect_optional_str(raw.get("dateTime"), f"{{path}}.dateTime")
         )
 
 
@@ -365,10 +389,14 @@ class JiraSingleSelectUserPickerField:
     user: Optional[JiraUser]
 
     @staticmethod
-    def from_dict(obj: Any, path: str) -> \"JiraSingleSelectUserPickerField\":
+    def from_dict(obj: Any, path: str) -> "JiraSingleSelectUserPickerField":
         raw = _expect_dict(obj, path)
-        user_raw = raw.get(\"user\")
-        user = JiraUser.from_dict(user_raw, f\"{path}.user\") if user_raw is not None else None
+        user_raw = raw.get("user")
+        user = (
+            JiraUser.from_dict(user_raw, f"{{path}}.user")
+            if user_raw is not None
+            else None
+        )
         return JiraSingleSelectUserPickerField(user=user)
 
 
@@ -385,51 +413,68 @@ class JiraIssueNode:
     reporter: Optional[JiraUser]
 
     @staticmethod
-    def from_dict(obj: Any, path: str) -> \"JiraIssueNode\":
+    def from_dict(obj: Any, path: str) -> "JiraIssueNode":
         raw = _expect_dict(obj, path)
-        resolution_raw = raw.get(\"resolutionDateField\")
-        assignee_raw = raw.get(\"assigneeField\")
-        reporter_raw = raw.get(\"reporter\")
+        resolution_raw = raw.get("resolutionDateField")
+        assignee_raw = raw.get("assigneeField")
+        reporter_raw = raw.get("reporter")
         return JiraIssueNode(
-            key=_expect_str(raw.get(\"key\"), f\"{path}.key\"),
-            issue_type=JiraIssueType.from_dict(raw.get(\"issueType\"), f\"{path}.issueType\"),
-            status=JiraStatus.from_dict(raw.get(\"status\"), f\"{path}.status\"),
-            project_field=JiraProjectField.from_dict(raw.get(\"projectField\"), f\"{path}.projectField\"),
-            created_field=JiraDateTimePickerField.from_dict(raw.get(\"createdField\"), f\"{path}.createdField\"),
-            updated_field=JiraDateTimePickerField.from_dict(raw.get(\"updatedField\"), f\"{path}.updatedField\"),
-            resolution_date_field=JiraDateTimePickerField.from_dict(resolution_raw, f\"{path}.resolutionDateField\")
+            key=_expect_str(raw.get("key"), f"{{path}}.key"),
+            issue_type=JiraIssueType.from_dict(raw.get("issueType"), f"{{path}}.issueType"),
+            status=JiraStatus.from_dict(raw.get("status"), f"{{path}}.status"),
+            project_field=JiraProjectField.from_dict(
+                raw.get("projectField"), f"{{path}}.projectField"
+            ),
+            created_field=JiraDateTimePickerField.from_dict(
+                raw.get("createdField"), f"{{path}}.createdField"
+            ),
+            updated_field=JiraDateTimePickerField.from_dict(
+                raw.get("updatedField"), f"{{path}}.updatedField"
+            ),
+            resolution_date_field=JiraDateTimePickerField.from_dict(
+                resolution_raw, f"{{path}}.resolutionDateField"
+            )
             if resolution_raw is not None
             else None,
-            assignee_field=JiraSingleSelectUserPickerField.from_dict(assignee_raw, f\"{path}.assigneeField\")
+            assignee_field=JiraSingleSelectUserPickerField.from_dict(
+                assignee_raw, f"{{path}}.assigneeField"
+            )
             if assignee_raw is not None
             else None,
-            reporter=JiraUser.from_dict(reporter_raw, f\"{path}.reporter\") if reporter_raw is not None else None,
+            reporter=JiraUser.from_dict(reporter_raw, f"{{path}}.reporter")
+            if reporter_raw is not None
+            else None,
         )
 
 
 def parse_jira_issue_by_key(data: Any) -> JiraIssueNode:
-    root = _expect_dict(data, \"data\")
-    issue = root.get(\"issueByKey\")
+    root = _expect_dict(data, "data")
+    issue = root.get("issueByKey")
     if issue is None:
-        raise SerializationError(\"Missing data.issueByKey\")
-    return JiraIssueNode.from_dict(issue, \"data.issueByKey\")
+        raise SerializationError("Missing data.issueByKey")
+    return JiraIssueNode.from_dict(issue, "data.issueByKey")
 """
 
 
 def main() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    token_file = Path(os.getenv("ATLASSIAN_OAUTH_TOKEN_FILE", repo_root / "oauth_tokens.txt"))
+    token_file = Path(
+        os.getenv("ATLASSIAN_OAUTH_TOKEN_FILE", repo_root / "oauth_tokens.txt")
+    )
     _load_env_file(token_file)
 
     schema_path = repo_root / "graphql" / "schema.introspection.json"
     if not schema_path.exists():
         base_url = os.getenv("ATLASSIAN_GQL_BASE_URL")
         if not base_url and (
-            os.getenv("ATLASSIAN_OAUTH_ACCESS_TOKEN") or os.getenv("ATLASSIAN_OAUTH_REFRESH_TOKEN")
+            os.getenv("ATLASSIAN_OAUTH_ACCESS_TOKEN")
+            or os.getenv("ATLASSIAN_OAUTH_REFRESH_TOKEN")
         ):
             base_url = "https://api.atlassian.com"
         if not base_url:
-            raise RuntimeError(f"Missing {schema_path} and ATLASSIAN_GQL_BASE_URL not set")
+            raise RuntimeError(
+                f"Missing {schema_path} and ATLASSIAN_GQL_BASE_URL not set"
+            )
         auth = _build_auth_from_env()
         if auth is None:
             raise RuntimeError("No credentials available in env vars to fetch schema")
@@ -443,7 +488,9 @@ def main() -> None:
     schema = _load_introspection(schema_path)
     cfg = _discover_config(schema)
 
-    out_path = repo_root / "python" / "atlassian" / "graph" / "gen" / "jira_issues_api.py"
+    out_path = (
+        repo_root / "python" / "atlassian" / "graph" / "gen" / "jira_issues_api.py"
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(_render_python(cfg), encoding="utf-8")
     print(f"Wrote {out_path}")

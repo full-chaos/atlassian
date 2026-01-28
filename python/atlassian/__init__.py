@@ -80,6 +80,8 @@ __all__ = [
     "AtlassianOpsSchedule",
     "OpsgenieTeamRef",
     "CanonicalProjectWithOpsgenieTeams",
+    "JiraBoard",
+    "JiraVersion",
     "iter_projects_with_opsgenie_linkable_teams",
     "list_projects_with_opsgenie_linkable_teams",
     "JiraRestClient",

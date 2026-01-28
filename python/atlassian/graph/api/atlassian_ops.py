@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import os
-from typing import Iterator, Optional
+from typing import Iterator
 
 from ...canonical_models import (
     AtlassianOpsAlert,

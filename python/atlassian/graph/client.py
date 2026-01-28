@@ -3,20 +3,19 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional
 
 import httpx
 
 from ..auth import AuthProvider
 from ..errors import (
     GraphQLOperationError,
-    LocalRateLimitError,
     RateLimitError,
     SerializationError,
     TransportError,
 )
 from ..logging import get_logger, sanitize_headers
-from ..models import GraphQLErrorItem, GraphQLResult, parse_error_items
+from ..models import GraphQLResult, parse_error_items
 from ..retry import parse_retry_after
 from .throttle import TokenBucket
 
