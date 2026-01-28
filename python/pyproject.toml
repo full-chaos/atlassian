@@ -17,3 +17,5 @@ where = ["."]
 version_scheme = "no-guess-dev"
 local_scheme = "no-local-version"
 tag_regex = "^v(?P<version>\\d+\\.\\d+\\.\\d+(?:(?:a\\d+|b\\d+|rc\\d+)|(?:-alpha\\.\\d+|-beta\\.\\d+|-rc\\.\\d+))?)$"
+root = ".."
+relative_to = "pyproject.toml"
