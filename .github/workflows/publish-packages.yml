@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (e.g. v0.1.0)"
+        description: "Release tag (e.g. v0.1.0)"
         required: true
         type: string
 
@@ -18,12 +18,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
+    env:
+      TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.version }}
+          ref: ${{ env.TAG }}
 
       - name: Resolve version
         id: vars
@@ -41,6 +43,22 @@ jobs:
       - name: Install build tooling
         working-directory: python
         run: python -m pip install build
+
+      - name: Resolve PyPI version
+        id: pypi-version
+        run: |
+          PYPI_VERSION="$(python - <<'PY'
+          import os
+          from packaging.version import Version
+
+          tag = os.environ["TAG"]
+          if tag.startswith("v"):
+            tag = tag[1:]
+          print(Version(tag))
+          PY
+          )"
+          echo "SETUPTOOLS_SCM_PRETEND_VERSION_FOR_ATLASSIAN_GEN_CLIENT=${PYPI_VERSION}" >> "$GITHUB_ENV"
+          echo "version=${PYPI_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Build package
         working-directory: python
