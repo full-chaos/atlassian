@@ -132,3 +132,69 @@ class AtlassianOpsSchedule:
     id: str
     name: str
     timezone: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class CompassComponent:
+    id: str
+    cloud_id: str
+    name: str
+    type: str  # SERVICE, LIBRARY, etc.
+    description: Optional[str] = None
+    owner_team_id: Optional[str] = None
+    owner_team_name: Optional[str] = None
+    labels: List[str] = field(default_factory=list)
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class CompassRelationship:
+    id: str
+    type: str  # DEPENDS_ON, OWNED_BY, etc.
+    start_component_id: str
+    end_component_id: str
+
+
+@dataclass(frozen=True)
+class CompassScorecardScore:
+    component_id: str
+    scorecard_id: str
+    score: float
+    scorecard_name: Optional[str] = None
+    max_score: Optional[float] = None
+    evaluated_at: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class AtlassianTeam:
+    id: str  # ARI format: ari:cloud:identity::team/{uuid}
+    display_name: str
+    state: str  # ACTIVE, ARCHIVED
+    description: Optional[str] = None
+    avatar_url: Optional[str] = None
+    member_count: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class AtlassianTeamMember:
+    team_id: str
+    account_id: str
+    display_name: Optional[str] = None
+    role: Optional[str] = None  # REGULAR, ADMIN
+
+
+@dataclass(frozen=True)
+class TeamworkProject:
+    team_id: str
+    project_id: str
+    project_key: Optional[str] = None
+    project_name: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class TeamworkUserRelation:
+    subject_user_id: str
+    relation_type: str  # TEAM_MEMBER, REPORTS_TO, MANAGES
+    team_id: Optional[str] = None
+    related_user_id: Optional[str] = None
