@@ -1,0 +1,117 @@
+openapi: 3.1.0
+info:
+  title: Compass Developer Health (Canonical)
+  version: 0.1.0
+  description: >
+    Canonical, API-agnostic schemas used for developer health and analytics pipelines.
+    These objects are intentionally stable and versioned independently of Atlassian
+    GraphQL Gateway (AGG) or Compass API response shapes.
+components:
+  schemas:
+    CompassComponent:
+      type: object
+      required:
+        - id
+        - cloudId
+        - name
+        - type
+      properties:
+        id:
+          type: string
+          minLength: 1
+        cloudId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum:
+            - SERVICE
+            - LIBRARY
+            - APPLICATION
+            - CAPABILITY
+            - CLOUD_RESOURCE
+            - DATA_PIPELINE
+            - MACHINE_LEARNING_MODEL
+            - UI_ELEMENT
+            - WEBSITE
+            - OTHER
+        description:
+          type: string
+          nullable: true
+        ownerTeamId:
+          type: string
+          minLength: 1
+          nullable: true
+        ownerTeamName:
+          type: string
+          minLength: 1
+          nullable: true
+        labels:
+          type: array
+          items:
+            type: string
+          default: []
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+      additionalProperties: false
+
+    CompassRelationship:
+      type: object
+      required:
+        - id
+        - type
+        - startComponentId
+        - endComponentId
+      properties:
+        id:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          minLength: 1
+        startComponentId:
+          type: string
+          minLength: 1
+        endComponentId:
+          type: string
+          minLength: 1
+      additionalProperties: false
+
+    CompassScorecardScore:
+      type: object
+      required:
+        - componentId
+        - scorecardId
+        - score
+      properties:
+        componentId:
+          type: string
+          minLength: 1
+        scorecardId:
+          type: string
+          minLength: 1
+        scorecardName:
+          type: string
+          minLength: 1
+          nullable: true
+        score:
+          type: number
+          minimum: 0
+          maximum: 100
+        maxScore:
+          type: number
+          nullable: true
+        evaluatedAt:
+          type: string
+          format: date-time
+          nullable: true
+      additionalProperties: false
