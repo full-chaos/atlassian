@@ -336,11 +336,7 @@ class GraphStoreCypherQueryV2Edge:
     @staticmethod
     def from_dict(obj: Any, path: str) -> "GraphStoreCypherQueryV2Edge":
         raw = _expect_dict(obj, path)
-        cursor = (
-            _expect_optional_str(raw.get("cursor"), f"{path}.cursor")
-            if True
-            else None
-        )
+        cursor = _expect_optional_str(raw.get("cursor"), f"{path}.cursor")
         node = raw.get("node")
         if node is None:
             raise SerializationError(f"Missing {path}.node")
