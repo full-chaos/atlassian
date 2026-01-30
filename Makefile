@@ -47,7 +47,7 @@ oauth:
 	python python/tools/oauth_login_server.py $(OAUTH_LOGIN_ARGS)
 
 test-python:
-	cd python && python -m pytest
+	cd python && PYTHONPATH=. python -m pytest
 
 test-go:
 	cd go && GOCACHE="$(GOCACHE)" GOPATH="$(GOPATH)" go test ./...
