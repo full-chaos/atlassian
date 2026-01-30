@@ -89,6 +89,22 @@ type JiraVersion struct {
 	ReleaseDate *string `json:"releaseDate,omitempty"`
 }
 
+type AtlassianTeam struct {
+	ID          string  `json:"id"`
+	DisplayName string  `json:"displayName"`
+	State       string  `json:"state"`
+	Description *string `json:"description,omitempty"`
+	AvatarURL   *string `json:"avatarUrl,omitempty"`
+	MemberCount *int    `json:"memberCount,omitempty"`
+}
+
+type AtlassianTeamMember struct {
+	TeamID      string  `json:"teamId"`
+	AccountID   string  `json:"accountId"`
+	DisplayName *string `json:"displayName,omitempty"`
+	Role        *string `json:"role,omitempty"`
+}
+
 type AtlassianOpsIncident struct {
 	ID          string  `json:"id"`
 	URL         *string `json:"url,omitempty"`
@@ -114,4 +130,33 @@ type AtlassianOpsSchedule struct {
 	ID       string  `json:"id"`
 	Name     string  `json:"name"`
 	Timezone *string `json:"timezone,omitempty"`
+}
+
+type CompassComponent struct {
+	ID            string   `json:"id"`
+	CloudID       string   `json:"cloudId"`
+	Name          string   `json:"name"`
+	Type          string   `json:"type"`
+	Description   *string  `json:"description,omitempty"`
+	OwnerTeamID   *string  `json:"ownerTeamId,omitempty"`
+	OwnerTeamName *string  `json:"ownerTeamName,omitempty"`
+	Labels        []string `json:"labels"`
+	CreatedAt     *string  `json:"createdAt,omitempty"`
+	UpdatedAt     *string  `json:"updatedAt,omitempty"`
+}
+
+type CompassRelationship struct {
+	ID               string `json:"id"`
+	Type             string `json:"type"`
+	StartComponentID string `json:"startComponentId"`
+	EndComponentID   string `json:"endComponentId"`
+}
+
+type CompassScorecardScore struct {
+	ComponentID   string   `json:"componentId"`
+	ScorecardID   string   `json:"scorecardId"`
+	ScorecardName *string  `json:"scorecardName,omitempty"`
+	Score         float64  `json:"score"`
+	MaxScore      *float64 `json:"maxScore,omitempty"`
+	EvaluatedAt   *string  `json:"evaluatedAt,omitempty"`
 }
