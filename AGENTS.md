@@ -119,15 +119,15 @@ Define the data model used for **developer health metrics**.
 
 **Source of Truth:**
 
-* `openapi/jira-developer-health.canonical.openapi.yaml`
+* `openapi/jira-developer-health.canonical.openapi.yaml` (Jira)
+* `openapi/compass-developer-health.canonical.openapi.yaml` (Compass)
+* `openapi/teams-developer-health.canonical.openapi.yaml` (Teams)
 
 **Examples:**
 
-* JiraUser
-* JiraProject
-* JiraIssue
-* JiraChangelogEvent
-* JiraWorklog
+* JiraUser, JiraProject, JiraIssue, JiraChangelogEvent, JiraWorklog
+* CompassComponent, CompassRelationship, CompassScorecardScore
+* AtlassianTeam, AtlassianTeamMember
 * CanonicalProjectWithOpsgenieTeams
 
 **Rules:**

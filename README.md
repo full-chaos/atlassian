@@ -18,6 +18,34 @@ Notes:
 - SDL output is best-effort. If the Python optional dependency for GraphQL SDL printing is not installed, only the JSON file is written.
 - Generation is intentionally minimal: it only emits the types needed for the Jira project listing query and its connection/edge shapes.
 
+## Compass & Teams GraphQL
+
+In addition to Jira, this library supports **Compass** (component catalog) and **Teams** (organizational structure) via AGG:
+
+### Compass
+
+Compass provides service catalog data including components, relationships, and scorecards.
+
+- Generate Compass models: `python python/tools/generate_compass_component_models.py` (or Go equivalent)
+- Canonical models: `CompassComponent`, `CompassRelationship`, `CompassScorecardScore`
+- Mappers: `python/atlassian/graph/mappers/compass_components.py`, `go/atlassian/graph/mappers/compass_components.go`
+
+### Teams
+
+Teams provides organizational structure including team membership and collaboration patterns.
+
+- Generate Teams models: `python python/tools/generate_team_models.py` (or Go equivalent)
+- Canonical models: `AtlassianTeam`, `AtlassianTeamMember`
+- Mappers: `python/atlassian/graph/mappers/teams.py`, `go/atlassian/graph/mappers/teams.go`
+- **Note:** Some Teams queries require beta headers (`X-ExperimentalApi: teams-beta`)
+
+### Teamwork Graph
+
+Teamwork Graph provides cross-product collaboration analytics:
+
+- Generate models: `python python/tools/generate_teamwork_graph_models.py`
+- Generated API: `python/atlassian/graph/gen/teamwork_graph_api.py`, `go/atlassian/graph/gen/teamwork_graph_api.go`
+
 ## Jira REST OpenAPI
 
 Jira Cloud publishes a Swagger/OpenAPI spec for REST v3. You can fetch it into this repo:
@@ -35,7 +63,11 @@ Jira Cloud publishes a Swagger/OpenAPI spec for REST v3. You can fetch it into t
 - Jira REST (tenanted): `https://{subdomain}.atlassian.net/rest/api/3/...`
 
 See the transport spec in `openapi/atlassian.transport.openapi.yaml`.
-Canonical analytics schemas live in `openapi/jira-developer-health.canonical.openapi.yaml`.
+
+Canonical analytics schemas:
+- Jira: `openapi/jira-developer-health.canonical.openapi.yaml`
+- Compass: `openapi/compass-developer-health.canonical.openapi.yaml`
+- Teams: `openapi/teams-developer-health.canonical.openapi.yaml`
 
 ## Getting an OAuth access token (3LO)
 
@@ -191,7 +223,10 @@ sprints, err := rest.ListBoardSprintsViaREST(context.Background(), 10, "active",
 ## Canonical vs API models
 
 - API models (`python/atlassian/graph/gen/`, `python/atlassian/rest/gen/`, `go/atlassian/graph/gen/`, `go/atlassian/rest/gen/`) are generated from live schemas and match the API response shape for specific operations/endpoints.
-- Canonical models (`python/atlassian/canonical_models.py`, `go/atlassian/canonical_models.go`) are stable, versioned analytics schemas (source-of-truth: `openapi/jira-developer-health.canonical.openapi.yaml`).
+- Canonical models (`python/atlassian/canonical_models.py`, `go/atlassian/canonical_models.go`) are stable, versioned analytics schemas. Sources of truth:
+  - Jira: `openapi/jira-developer-health.canonical.openapi.yaml`
+  - Compass: `openapi/compass-developer-health.canonical.openapi.yaml`
+  - Teams: `openapi/teams-developer-health.canonical.openapi.yaml`
 - Mappers live in `python/atlassian/graph/mappers/`, `python/atlassian/rest/mappers/`, `go/atlassian/graph/mappers/`, and `go/atlassian/rest/mappers/`.
 
 ## Tests
