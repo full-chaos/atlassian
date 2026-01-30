@@ -76,21 +76,9 @@ class PageInfo:
     def from_dict(obj: Any, path: str) -> "PageInfo":
         raw = _expect_dict(obj, path)
         has_next = _expect_bool(raw.get("hasNextPage"), f"{path}.hasNextPage")
-        end_cursor = (
-            _expect_optional_str(raw.get("endCursor"), f"{path}.endCursor")
-            if True
-            else None
-        )
-        start_cursor = (
-            _expect_optional_str(raw.get("startCursor"), f"{path}.startCursor")
-            if True
-            else None
-        )
-        has_previous = (
-            _expect_bool(raw.get("hasPreviousPage"), f"{path}.hasPreviousPage")
-            if True
-            else None
-        )
+        end_cursor = _expect_optional_str(raw.get("endCursor"), f"{path}.endCursor")
+        start_cursor = _expect_optional_str(raw.get("startCursor"), f"{path}.startCursor")
+        has_previous = _expect_bool(raw.get("hasPreviousPage"), f"{path}.hasPreviousPage")
         return PageInfo(
             has_next_page=has_next,
             end_cursor=end_cursor,
