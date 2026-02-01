@@ -1,9 +1,5 @@
 Atlassian GraphQL and Rest clients for Python and Go with shared transport OpenAPI spec.
 
-# Experimental Warning
-
-This library is experimental to generate package clients from graphql introspection and swagger rest docs
-
 ## Schema introspection + codegen
 
 This repo avoids stale, hand-written assumptions about Atlassian GraphQL Gateway (AGG) by generating a small, query-focused set of API models from **live schema introspection**.
