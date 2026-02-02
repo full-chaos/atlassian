@@ -266,6 +266,11 @@ If you are an AI agent (Codex, Copilot, Claude, etc.):
   ```bash
   git checkout -b <type>/<descriptive-name>  # e.g., fix/rate-limit, feat/compass-sync
   ```
+* **Use git worktrees for parallel work** — When starting a new feature or unrelated task, use a worktree:
+  ```bash
+  git worktree add ../atlassian-feature-name feature/branch-name
+  ```
+  This keeps each task isolated, preventing cross-contamination of changes.
 * DO NOT invent GraphQL fields
 * DO NOT assume schema stability
 * DO NOT collapse API models into analytics models
