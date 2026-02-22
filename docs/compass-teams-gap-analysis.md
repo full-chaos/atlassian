@@ -1,6 +1,6 @@
 # Compass & Teams GraphQL Coverage Gap Analysis
 
-> **Task:** `dev-health-ops-9lv` | **GitHub:** [full-chaos/atlassian#8](https://github.com/full-chaos/atlassian/issues/8)
+> **Task:** `dev-health-ops-9lv` | **Linear:** Tracked in Linear (migrated from GitHub Issues)
 > **Date:** 2026-01-30
 > **Status:** ✅ **IMPLEMENTED** (PR #31)
 

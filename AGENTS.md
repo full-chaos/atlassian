@@ -295,51 +295,33 @@ Guessing is a failure.
 
 ---
 
-## Task Tracking (bd + GitHub)
+## Task Tracking (bd + Linear)
 
-> **Canonical Reference:** See [`/AGENTS.md`](../AGENTS.md#11-task-tracking-bd--github) for full documentation.
+> **Canonical Reference:** See [`/AGENTS.md`](../AGENTS.md#11-task-tracking-bd--linear) for full documentation.
 
-**Project Board:** `https://github.com/orgs/full-chaos/projects/1`
+**External tracker:** Linear project/cycle views.
 
 ### Quick Reference
 
 ```bash
 # bd (local task tracking)
-bd create "Task title" --priority P2 --external-ref gh-123
+bd create "Task title" --priority P2 --external-ref ENG-123
 bd list --status open
 bd status <id> in-progress
 bd status <id> done
 bd dep add <child-id> <parent-id> --type parent-child
 bd sync
 
-# GitHub issues (use labels, not --type)
-gh issue create --title "Title" --body "Description" --label task
-gh issue edit NNN --add-project "https://github.com/orgs/full-chaos/projects/1"
+# Linear issue linkage (team issue key)
+# Example: ENG-123
 ```
 
 ### Workflow
 
-1. Create bd issue with `--external-ref gh-NNN` to link to GitHub
+1. Create bd issue with `--external-ref <TEAM>-NNN` to link to Linear
 2. Update bd status during work
 3. Run `bd sync` before `git push`
-4. Close GitHub issue when complete
-
-### Session Completion
-
-**When ending a work session**, you MUST:
-
-1. **File issues** for remaining work
-2. **Run quality gates** (tests, linters)
-3. **Update issue status** (close finished, update in-progress)
-4. **PUSH TO REMOTE** (mandatory):
-
-   ```bash
-   git pull --rebase && bd sync && git push && git status
-   ```
-
-5. **Hand off** context for next session
-
-**Work is NOT complete until `git push` succeeds.**
+4. Close/update the linked Linear issue when complete
 
 ---
 
