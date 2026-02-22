@@ -262,6 +262,10 @@ Rules:
 
 If you are an AI agent (Codex, Copilot, Claude, etc.):
 
+* **NEVER commit directly to main** — Always create a feature branch first:
+  ```bash
+  git checkout -b <type>/<descriptive-name>  # e.g., fix/rate-limit, feat/compass-sync
+  ```
 * DO NOT invent GraphQL fields
 * DO NOT assume schema stability
 * DO NOT collapse API models into analytics models
