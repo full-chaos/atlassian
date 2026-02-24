@@ -643,11 +643,14 @@ def _render_python(cfg: _Config) -> str:
             score_obj_fields.append(cfg.evaluated_at_field_name)
         score_obj_select = " ".join(score_obj_fields)
 
-        edge_inner_parts = [f"node {{ {node_ref_select} }}",
-                            f"{cfg.edge_score_field_name} {{ {score_obj_select} }}"]
+        edge_inner_parts = [
+            f"node {{ {node_ref_select} }}",
+            f"{cfg.edge_score_field_name} {{ {score_obj_select} }}",
+        ]
         if cfg.edge_has_cursor:
             edge_inner_parts = ["cursor"] + edge_inner_parts
-        edges_select = "\n            ".join(edge_inner_parts)
+        _edge_indent = "\n            "
+        edges_select = _edge_indent.join(edge_inner_parts)
 
         nodes_select = ""  # edge-level scoring doesn't use nodes shortcut
 
