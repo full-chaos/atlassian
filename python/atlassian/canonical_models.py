@@ -131,7 +131,54 @@ class AtlassianOpsAlert:
 class AtlassianOpsSchedule:
     id: str
     name: str
+    description: Optional[str] = None
     timezone: Optional[str] = None
+    enabled: bool = True
+    team_id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class AtlassianOpsRotation:
+    id: str
+    schedule_id: str
+    name: str
+    type: Optional[str] = None  # daily, weekly, hourly
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    length: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class AtlassianOpsEscalation:
+    id: str
+    name: str
+    description: Optional[str] = None
+    team_id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class AtlassianOpsAlertPolicy:
+    id: str
+    name: str
+    enabled: bool = True
+    team_id: Optional[str] = None
+    type: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class AtlassianOpsOnCallParticipant:
+    id: str
+    type: str  # user, team, escalation, noone
+    schedule_id: str
+
+
+@dataclass(frozen=True)
+class AtlassianOpsHeartbeat:
+    id: str
+    name: str
+    enabled: bool = True
+    interval: Optional[int] = None
+    interval_unit: Optional[str] = None
 
 
 @dataclass(frozen=True)

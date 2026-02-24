@@ -96,12 +96,20 @@ class GraphQLClient:
             },
         )
 
-    def _build_headers(self, experimental_apis: Optional[List[str]]) -> httpx.Headers:
+    def _build_headers(
+        self,
+        experimental_apis: Optional[List[str]],
+        extra_headers: Optional[Dict[str, str]] = None,
+    ) -> httpx.Headers:
         header_items: List[tuple[str, str]] = list(self._base_headers)
         if experimental_apis:
             for beta in experimental_apis:
                 if beta:
                     header_items.append(("X-ExperimentalApi", beta))
+        if extra_headers:
+            for key, value in extra_headers.items():
+                if key and value:
+                    header_items.append((key, value))
         headers = httpx.Headers(header_items)
         self.auth.apply(headers)
         return headers
@@ -127,6 +135,7 @@ class GraphQLClient:
         operation_name: Optional[str] = None,
         experimental_apis: Optional[List[str]] = None,
         estimated_cost: int = 1,
+        extra_headers: Optional[Dict[str, str]] = None,
     ) -> GraphQLResult:
         if not query or not query.strip():
             raise ValueError("query must be a non-empty string")
@@ -145,7 +154,7 @@ class GraphQLClient:
         while True:
             attempt_number = retries + 1
             self._consume_local_budget(cost_value)
-            headers = self._build_headers(experimental_apis)
+            headers = self._build_headers(experimental_apis, extra_headers)
             cookies = self.auth.get_cookies() if hasattr(self.auth, "get_cookies") else None
             start = time.perf_counter()
             try:

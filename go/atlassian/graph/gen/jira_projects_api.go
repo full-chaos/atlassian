@@ -108,11 +108,6 @@ func BuildJiraProjectsPageQuery(projectTypes []string) (string, error) {
 	), nil
 }
 
-type PageInfo struct {
-	HasNextPage bool    `json:"hasNextPage"`
-	EndCursor   *string `json:"endCursor,omitempty"`
-}
-
 type OpsgenieTeamNode struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`

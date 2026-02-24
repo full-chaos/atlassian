@@ -27,6 +27,7 @@ from atlassian.graph.schema_fetcher import fetch_schema_introspection  # noqa: E
 @dataclass(frozen=True)
 class _Config:
     team_field_name: str
+    team_by_id_parent_field_name: Optional[str]
     team_id_arg_name: str
     team_id_arg_type: str
     team_type_name: str
@@ -215,42 +216,6 @@ def _arg(field_def: Dict[str, Any], name: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _find_team_by_id_field(
-    query_def: Dict[str, Any], types: Dict[str, Dict[str, Any]]
-) -> Tuple[str, Dict[str, Any], str]:
-    candidates: List[Tuple[str, Dict[str, Any], str]] = []
-    for f in query_def.get("fields", []):
-        if not isinstance(f, dict):
-            continue
-        if not _arg(f, "id"):
-            continue
-        type_name, _, _ = _unwrap_named_type(f.get("type") or {})
-        if not type_name:
-            continue
-        type_def = types.get(type_name)
-        if not type_def:
-            continue
-        if not _field(type_def, "id"):
-            continue
-        if not _field(type_def, "displayName"):
-            continue
-        if not _field(type_def, "smallAvatarImageUrl"):
-            continue
-        if not _field(type_def, "state"):
-            continue
-        field_name = f.get("name")
-        if isinstance(field_name, str) and field_name:
-            candidates.append((field_name, f, type_name))
-
-    candidates = sorted(candidates, key=lambda item: item[0])
-    for name, f, type_name in candidates:
-        if name == "team":
-            return name, f, type_name
-    if candidates:
-        return candidates[0]
-    raise RuntimeError("Unable to locate team-by-id field on the query type")
-
-
 def _all_args_optional(field_def: Dict[str, Any]) -> bool:
     args = field_def.get("args")
     if not isinstance(args, list):
@@ -262,6 +227,70 @@ def _all_args_optional(field_def: Dict[str, Any]) -> bool:
         if isinstance(type_ref, dict) and _is_non_null(type_ref):
             return False
     return True
+
+
+def _is_team_type(type_def: Dict[str, Any]) -> bool:
+    return (
+        _field(type_def, "id") is not None
+        and _field(type_def, "displayName") is not None
+        and _field(type_def, "smallAvatarImageUrl") is not None
+        and _field(type_def, "state") is not None
+    )
+
+
+def _find_team_by_id_field_in(
+    type_def: Dict[str, Any], types: Dict[str, Dict[str, Any]]
+) -> List[Tuple[str, Dict[str, Any], str]]:
+    """Return (field_name, field_def, team_type_name) for each field with id arg returning a team type."""
+    candidates: List[Tuple[str, Dict[str, Any], str]] = []
+    for f in type_def.get("fields", []):
+        if not isinstance(f, dict):
+            continue
+        if not _arg(f, "id"):
+            continue
+        type_name, _, _ = _unwrap_named_type(f.get("type") or {})
+        if not type_name:
+            continue
+        t = types.get(type_name)
+        if not t:
+            continue
+        if not _is_team_type(t):
+            continue
+        field_name = f.get("name")
+        if isinstance(field_name, str) and field_name:
+            candidates.append((field_name, f, type_name))
+    return candidates
+
+
+def _find_team_by_id_field(
+    query_def: Dict[str, Any], types: Dict[str, Dict[str, Any]]
+) -> Tuple[Optional[str], str, Dict[str, Any], str]:
+    """Return (parent_field_name_or_None, field_name, field_def, team_type_name)."""
+    direct = _find_team_by_id_field_in(query_def, types)
+    direct = sorted(direct, key=lambda item: item[0])
+    for name, f, type_name in direct:
+        if name == "team":
+            return None, name, f, type_name
+    if direct:
+        return None, direct[0][0], direct[0][1], direct[0][2]
+
+    # Try nested: Query.team.<subfield>(id: ...) -> TeamType
+    parent_field = _field(query_def, "team")
+    if parent_field and _all_args_optional(parent_field):
+        parent_type_name, _, _ = _unwrap_named_type(parent_field.get("type") or {})
+        if parent_type_name:
+            parent_def = types.get(parent_type_name)
+            if parent_def:
+                nested = _find_team_by_id_field_in(parent_def, types)
+                nested = sorted(nested, key=lambda item: item[0])
+                # Prefer teamV2 as the canonical team-by-id field
+                for name, f, type_name in nested:
+                    if name == "teamV2":
+                        return "team", name, f, type_name
+                if nested:
+                    return "team", nested[0][0], nested[0][1], nested[0][2]
+
+    raise RuntimeError("Unable to locate team-by-id field on the query type")
 
 
 def _discover_team_search_field(
@@ -319,7 +348,7 @@ def _discover_config(schema: Dict[str, Any]) -> _Config:
     if not query_def:
         raise RuntimeError(f"Missing query type definition: {query_name}")
 
-    team_field_name, team_field, team_type_name = _find_team_by_id_field(
+    team_by_id_parent_field_name, team_field_name, team_field, team_type_name = _find_team_by_id_field(
         query_def, types
     )
     team_id_arg = _arg(team_field, "id")
@@ -469,6 +498,7 @@ def _discover_config(schema: Dict[str, Any]) -> _Config:
 
     return _Config(
         team_field_name=team_field_name,
+        team_by_id_parent_field_name=team_by_id_parent_field_name,
         team_id_arg_name="id",
         team_id_arg_type=team_id_arg_type,
         team_type_name=team_type_name,
@@ -559,18 +589,34 @@ def _render_python(cfg: _Config) -> str:
     team_search_lines.append("}")
     team_search_body = "\n".join(team_search_lines) + "\n"
 
-    team_by_id_lines = [
-        "query TeamById(",
-        f"  $teamId: {cfg.team_id_arg_type}",
-        ") {",
-        f"  {cfg.team_field_name}({cfg.team_id_arg_name}: $teamId) {{",
-        "    id",
-        "    displayName",
-        "    smallAvatarImageUrl",
-        "    state",
-        "  }",
-        "}",
-    ]
+    if cfg.team_by_id_parent_field_name:
+        team_by_id_lines = [
+            "query TeamById(",
+            f"  $teamId: {cfg.team_id_arg_type}",
+            ") {",
+            f"  {cfg.team_by_id_parent_field_name} {{",
+            f"    {cfg.team_field_name}({cfg.team_id_arg_name}: $teamId) {{",
+            "      id",
+            "      displayName",
+            "      smallAvatarImageUrl",
+            "      state",
+            "    }",
+            "  }",
+            "}",
+        ]
+    else:
+        team_by_id_lines = [
+            "query TeamById(",
+            f"  $teamId: {cfg.team_id_arg_type}",
+            ") {",
+            f"  {cfg.team_field_name}({cfg.team_id_arg_name}: $teamId) {{",
+            "    id",
+            "    displayName",
+            "    smallAvatarImageUrl",
+            "    state",
+            "  }",
+            "}",
+        ]
     team_by_id_body = "\n".join(team_by_id_lines) + "\n"
 
     id_type = "str" if cfg.team_id_required else "Optional[str]"
@@ -594,6 +640,7 @@ TEAM_ARI_PREFIX = "ari:cloud:identity::team/"
 TEAM_ARI_RE = re.compile(r"^" + re.escape(TEAM_ARI_PREFIX) + r"[0-9a-fA-F-]{{36}}$")
 
 TEAM_QUERY_FIELD = {cfg.team_field_name!r}
+TEAM_QUERY_PARENT_FIELD = {cfg.team_by_id_parent_field_name!r}
 TEAM_QUERY_ID_ARG = {cfg.team_id_arg_name!r}
 TEAM_QUERY_ID_TYPE = {cfg.team_id_arg_type!r}
 TEAM_TYPE_NAME = {cfg.team_type_name!r}
@@ -786,6 +833,15 @@ class TeamSearchConnection:
 
 def parse_team_by_id(data: Any) -> TeamNode:
     root = _expect_dict(data, "data")
+    if TEAM_QUERY_PARENT_FIELD:
+        parent = root.get(TEAM_QUERY_PARENT_FIELD)
+        if parent is None:
+            raise SerializationError(f"Missing data.{{TEAM_QUERY_PARENT_FIELD}}")
+        parent_obj = _expect_dict(parent, f"data.{{TEAM_QUERY_PARENT_FIELD}}")
+        team = parent_obj.get(TEAM_QUERY_FIELD)
+        if team is None:
+            raise SerializationError(f"Missing data.{{TEAM_QUERY_PARENT_FIELD}}.{{TEAM_QUERY_FIELD}}")
+        return TeamNode.from_dict(team, f"data.{{TEAM_QUERY_PARENT_FIELD}}.{{TEAM_QUERY_FIELD}}")
     team = root.get(TEAM_QUERY_FIELD)
     if team is None:
         raise SerializationError(f"Missing data.{{TEAM_QUERY_FIELD}}")

@@ -1,0 +1,219 @@
+openapi: 3.1.0
+info:
+  title: Atlassian Operations (JSM Ops) Developer Health (Canonical)
+  version: 0.1.0
+  description: >
+    Canonical, API-agnostic schemas used for developer health and analytics pipelines.
+    These objects are intentionally stable and versioned independently of the JSM Ops
+    REST API (https://api.atlassian.com/jsm/ops/api/{cloudId}) response shapes.
+    OAuth scope required: read:ops-config:jira-service-management
+components:
+  schemas:
+    AtlassianOpsSchedule:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+        teamId:
+          type: string
+          nullable: true
+      additionalProperties: false
+
+    AtlassianOpsRotation:
+      type: object
+      required:
+        - id
+        - scheduleId
+        - name
+      properties:
+        id:
+          type: string
+          minLength: 1
+        scheduleId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [daily, weekly, hourly]
+          nullable: true
+        startDate:
+          type: string
+          format: date-time
+          nullable: true
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+        length:
+          type: integer
+          nullable: true
+      additionalProperties: false
+
+    AtlassianOpsEscalation:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        teamId:
+          type: string
+          nullable: true
+      additionalProperties: false
+
+    AtlassianOpsAlertPolicy:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        enabled:
+          type: boolean
+        teamId:
+          type: string
+          nullable: true
+        type:
+          type: string
+          nullable: true
+      additionalProperties: false
+
+    AtlassianOpsOnCallParticipant:
+      type: object
+      required:
+        - id
+        - type
+        - scheduleId
+      properties:
+        id:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [user, team, escalation, noone]
+        scheduleId:
+          type: string
+          minLength: 1
+      additionalProperties: false
+
+    AtlassianOpsHeartbeat:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        enabled:
+          type: boolean
+        interval:
+          type: integer
+          nullable: true
+        intervalUnit:
+          type: string
+          nullable: true
+      additionalProperties: false
+
+    AtlassianOpsIncident:
+      type: object
+      required:
+        - id
+        - summary
+        - status
+        - severity
+        - createdAt
+      properties:
+        id:
+          type: string
+          minLength: 1
+        url:
+          type: string
+          nullable: true
+        summary:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          minLength: 1
+        severity:
+          type: string
+          minLength: 1
+        createdAt:
+          type: string
+          format: date-time
+        providerId:
+          type: string
+          nullable: true
+      additionalProperties: false
+
+    AtlassianOpsAlert:
+      type: object
+      required:
+        - id
+        - status
+        - priority
+        - createdAt
+      properties:
+        id:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          minLength: 1
+        priority:
+          type: string
+          minLength: 1
+        createdAt:
+          type: string
+          format: date-time
+        acknowledgedAt:
+          type: string
+          format: date-time
+          nullable: true
+        snoozedAt:
+          type: string
+          format: date-time
+          nullable: true
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+      additionalProperties: false

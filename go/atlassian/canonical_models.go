@@ -127,9 +127,65 @@ type AtlassianOpsAlert struct {
 }
 
 type AtlassianOpsSchedule struct {
-	ID       string  `json:"id"`
-	Name     string  `json:"name"`
-	Timezone *string `json:"timezone,omitempty"`
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	Timezone    *string `json:"timezone,omitempty"`
+	Enabled     bool    `json:"enabled"`
+	TeamID      *string `json:"teamId,omitempty"`
+}
+
+type AtlassianOpsRotation struct {
+	ID         string  `json:"id"`
+	ScheduleID string  `json:"scheduleId"`
+	Name       string  `json:"name"`
+	Type       *string `json:"type,omitempty"`
+	StartDate  *string `json:"startDate,omitempty"`
+	EndDate    *string `json:"endDate,omitempty"`
+	Length     *int    `json:"length,omitempty"`
+}
+
+type AtlassianOpsEscalation struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	TeamID      *string `json:"teamId,omitempty"`
+}
+
+type AtlassianOpsAlertPolicy struct {
+	ID      string  `json:"id"`
+	Name    string  `json:"name"`
+	Enabled bool    `json:"enabled"`
+	TeamID  *string `json:"teamId,omitempty"`
+	Type    *string `json:"type,omitempty"`
+}
+
+type AtlassianOpsOnCallParticipant struct {
+	ID         string `json:"id"`
+	Type       string `json:"type"`
+	ScheduleID string `json:"scheduleId"`
+}
+
+type AtlassianOpsHeartbeat struct {
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	Enabled      bool    `json:"enabled"`
+	Interval     *int    `json:"interval,omitempty"`
+	IntervalUnit *string `json:"intervalUnit,omitempty"`
+}
+
+type TeamworkProject struct {
+	TeamID      string  `json:"teamId"`
+	ProjectID   string  `json:"projectId"`
+	ProjectKey  *string `json:"projectKey,omitempty"`
+	ProjectName *string `json:"projectName,omitempty"`
+}
+
+type TeamworkUserRelation struct {
+	SubjectUserID string  `json:"subjectUserId"`
+	RelationType  string  `json:"relationType"` // TEAM_MEMBER, REPORTS_TO, MANAGES
+	TeamID        *string `json:"teamId,omitempty"`
+	RelatedUserID *string `json:"relatedUserId,omitempty"`
 }
 
 type CompassComponent struct {

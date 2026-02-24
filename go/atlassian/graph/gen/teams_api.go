@@ -75,6 +75,7 @@ type TeamNode struct {
 	State               *string `json:"state"`
 }
 
+// TeamMemberNode represents a member of a team as returned by the Teams API.
 type TeamMemberNode struct {
 	AccountID   string  `json:"accountId"`
 	DisplayName *string `json:"displayName,omitempty"`
