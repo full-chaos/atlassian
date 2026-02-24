@@ -31,7 +31,8 @@ def map_compass_component(
     if not component_name:
         raise ValueError("component.name is required")
 
-    component_type = (getattr(component, "type", "") or "").strip()
+    # Accept both 'type' (canonical) and 'type_id' (generated field name from GraphQL typeId)
+    component_type = (getattr(component, "type", "") or getattr(component, "type_id", "") or "").strip()
     if not component_type:
         raise ValueError("component.type is required")
 
@@ -44,8 +45,11 @@ def map_compass_component(
         owner_team_id = (
             _clean_optional_str(getattr(owner_team, "id", None)) or owner_team_id
         )
+        # Accept both 'name' (canonical) and 'display_name' (generated from GraphQL displayName)
         owner_team_name = (
-            _clean_optional_str(getattr(owner_team, "name", None)) or owner_team_name
+            _clean_optional_str(getattr(owner_team, "name", None))
+            or _clean_optional_str(getattr(owner_team, "display_name", None))
+            or owner_team_name
         )
 
     labels: List[str] = []

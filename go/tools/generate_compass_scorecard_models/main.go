@@ -30,6 +30,14 @@ type config struct {
 	EdgeHasCursor             bool
 	ConnectionHasNodes        bool
 
+	// ScoreOnEdge: true when the score fields are on the edge (not the node).
+	// In this case EdgeScoreFieldName is the name of the edge field containing the score object,
+	// and the node itself is the scorecard ref (NodeScorecardIDFieldName/NodeScorecardNameFieldName).
+	ScoreOnEdge          bool
+	EdgeScoreFieldName   string
+	NodeScorecardIDFieldName   string
+	NodeScorecardNameFieldName string
+
 	ScoreFieldName     string
 	ScoreFieldNullable bool
 
@@ -409,8 +417,25 @@ func discoverComponentType(types map[string]map[string]any, unionDef map[string]
 	return nil, errors.New("unable to identify CompassComponent type in union")
 }
 
-func discoverScorecardsField(types map[string]map[string]any, componentDef map[string]any) (string, map[string]any, map[string]any, error) {
+// discoverScorecardsField finds the scorecards connection field on a component type.
+// Returns: fieldName, connDef, nodeDef, edgeDefIfScoreOnEdge, error.
+// If the score is on the edge (edge-level scoring), edgeDef is non-nil.
+func discoverScorecardsField(types map[string]map[string]any, componentDef map[string]any) (string, map[string]any, map[string]any, map[string]any, error) {
 	rawFields, _ := componentDef["fields"].([]any)
+	type nodeCandidate struct {
+		fieldName string
+		connDef   map[string]any
+		nodeDef   map[string]any
+	}
+	type edgeCandidate struct {
+		fieldName string
+		connDef   map[string]any
+		nodeDef   map[string]any
+		edgeDef   map[string]any
+	}
+	var nodeCandidates []nodeCandidate
+	var edgeCandidates []edgeCandidate
+
 	for _, f := range rawFields {
 		field, ok := f.(map[string]any)
 		if !ok {
@@ -455,7 +480,11 @@ func discoverScorecardsField(types map[string]map[string]any, componentDef map[s
 		if connDef == nil {
 			continue
 		}
-		edgeTypeName, _ := unwrapNamedType(getField(connDef, "edges")["type"])
+		edgesF := getField(connDef, "edges")
+		if edgesF == nil {
+			continue
+		}
+		edgeTypeName, _ := unwrapNamedType(edgesF["type"])
 		edgeDef := types[edgeTypeName]
 		if edgeDef == nil {
 			continue
@@ -469,15 +498,44 @@ func discoverScorecardsField(types map[string]map[string]any, componentDef map[s
 		if nodeDef == nil {
 			continue
 		}
-		if getField(nodeDef, "score") == nil {
+		// Pattern 1: node has score + scorecard
+		if getField(nodeDef, "score") != nil && getField(nodeDef, "scorecard") != nil {
+			nodeCandidates = append(nodeCandidates, nodeCandidate{fieldName, connDef, nodeDef})
 			continue
 		}
-		if getField(nodeDef, "scorecard") == nil {
-			continue
+		// Pattern 2: edge-level scoring - node has id+name, edge has a score-object field
+		if getField(nodeDef, "id") != nil && getField(nodeDef, "name") != nil {
+			edgeRawFields, _ := edgeDef["fields"].([]any)
+			for _, ef := range edgeRawFields {
+				efm, ok := ef.(map[string]any)
+				if !ok {
+					continue
+				}
+				efName, _ := efm["name"].(string)
+				if efName == "" || efName == "cursor" || efName == "node" || efName == "activeWorkItems" {
+					continue
+				}
+				efTypeName, _ := unwrapNamedType(efm["type"])
+				efDef := types[efTypeName]
+				if efDef == nil {
+					continue
+				}
+				if getField(efDef, "totalScore") != nil || getField(efDef, "score") != nil {
+					edgeCandidates = append(edgeCandidates, edgeCandidate{fieldName, connDef, nodeDef, edgeDef})
+					break
+				}
+			}
 		}
-		return fieldName, connDef, nodeDef, nil
 	}
-	return "", nil, nil, errors.New("unable to locate scorecards field on CompassComponent")
+	if len(nodeCandidates) > 0 {
+		c := nodeCandidates[0]
+		return c.fieldName, c.connDef, c.nodeDef, nil, nil
+	}
+	if len(edgeCandidates) > 0 {
+		c := edgeCandidates[0]
+		return c.fieldName, c.connDef, c.nodeDef, c.edgeDef, nil
+	}
+	return "", nil, nil, nil, errors.New("unable to locate scorecards field on CompassComponent")
 }
 
 func discoverConfig(schema map[string]any) (*config, error) {
@@ -568,10 +626,11 @@ func discoverConfig(schema map[string]any) (*config, error) {
 		return nil, errors.New("unable to resolve component type name")
 	}
 
-	scorecardsFieldName, connDef, nodeDef, err := discoverScorecardsField(types, componentDef)
+	scorecardsFieldName, connDef, nodeDef, scoreEdgeDef, err := discoverScorecardsField(types, componentDef)
 	if err != nil {
 		return nil, err
 	}
+	scoreOnEdge := scoreEdgeDef != nil
 
 	connectionTypeName, _ := connDef["name"].(string)
 	if connectionTypeName == "" {
@@ -608,54 +667,127 @@ func discoverConfig(schema map[string]any) (*config, error) {
 	}
 	edgeHasCursor := getField(edgeDef, "cursor") != nil
 
-	scoreField := getField(nodeDef, "score")
-	if scoreField == nil {
-		return nil, errors.New("scorecard node missing score field")
-	}
-	scoreFieldName, _ := scoreField["name"].(string)
-	scoreFieldNullable := isNullable(scoreField["type"])
-
-	maxScoreField := getField(nodeDef, "maxScore")
+	// Initialize defaults
+	scoreFieldName := "score"
+	scoreFieldNullable := true
 	maxScoreFieldName := ""
 	maxScoreFieldNullable := true
-	if maxScoreField != nil {
-		maxScoreFieldName, _ = maxScoreField["name"].(string)
-		maxScoreFieldNullable = isNullable(maxScoreField["type"])
-	}
-
-	evaluatedAtField := getField(nodeDef, "evaluatedAt")
 	evaluatedAtFieldName := ""
 	evaluatedAtFieldNullable := true
-	if evaluatedAtField != nil {
-		evaluatedAtFieldName, _ = evaluatedAtField["name"].(string)
-		evaluatedAtFieldNullable = isNullable(evaluatedAtField["type"])
-	}
-
-	scorecardField := getField(nodeDef, "scorecard")
-	if scorecardField == nil {
-		return nil, errors.New("scorecard node missing scorecard field")
-	}
-	scorecardFieldName, _ := scorecardField["name"].(string)
-	scorecardTypeName, _ := unwrapNamedType(scorecardField["type"])
-	scorecardDef := types[scorecardTypeName]
-	if scorecardDef == nil {
-		return nil, fmt.Errorf("missing scorecard type definition: %s", scorecardTypeName)
-	}
-	scorecardIDField := getField(scorecardDef, "id")
-	if scorecardIDField == nil {
-		return nil, fmt.Errorf("scorecard type %s missing id field", scorecardTypeName)
-	}
-	scorecardIDFieldName, _ := scorecardIDField["name"].(string)
-	scorecardIDFieldNullable := isNullable(scorecardIDField["type"])
-	scorecardNameField := getField(scorecardDef, "name")
-	if scorecardNameField == nil {
-		scorecardNameField = getField(scorecardDef, "displayName")
-	}
+	scorecardFieldName := ""
+	scorecardIDFieldName := "id"
+	scorecardIDFieldNullable := false
 	scorecardNameFieldName := ""
 	scorecardNameFieldNullable := true
-	if scorecardNameField != nil {
-		scorecardNameFieldName, _ = scorecardNameField["name"].(string)
-		scorecardNameFieldNullable = isNullable(scorecardNameField["type"])
+	edgeScoreFieldName := ""
+	nodeScorecardIDFieldName := "id"
+	nodeScorecardNameFieldName := ""
+
+	if scoreOnEdge {
+		// Find the edge field that holds the score object
+		edgeRawFields, _ := scoreEdgeDef["fields"].([]any)
+		for _, ef := range edgeRawFields {
+			efm, ok := ef.(map[string]any)
+			if !ok {
+				continue
+			}
+			efName, _ := efm["name"].(string)
+			if efName == "" || efName == "cursor" || efName == "node" || efName == "activeWorkItems" {
+				continue
+			}
+			efTypeName, _ := unwrapNamedType(efm["type"])
+			efDef := types[efTypeName]
+			if efDef == nil {
+				continue
+			}
+			if totalScoreF := getField(efDef, "totalScore"); totalScoreF != nil {
+				edgeScoreFieldName = efName
+				scoreFieldName, _ = totalScoreF["name"].(string)
+				scoreFieldNullable = isNullable(totalScoreF["type"])
+				if maxF := getField(efDef, "maxTotalScore"); maxF != nil {
+					maxScoreFieldName, _ = maxF["name"].(string)
+					maxScoreFieldNullable = isNullable(maxF["type"])
+				}
+				if evalF := getField(efDef, "evaluatedAt"); evalF != nil {
+					evaluatedAtFieldName, _ = evalF["name"].(string)
+					evaluatedAtFieldNullable = isNullable(evalF["type"])
+				}
+				break
+			} else if scoreF := getField(efDef, "score"); scoreF != nil {
+				edgeScoreFieldName = efName
+				scoreFieldName, _ = scoreF["name"].(string)
+				scoreFieldNullable = isNullable(scoreF["type"])
+				if maxF := getField(efDef, "maxScore"); maxF != nil {
+					maxScoreFieldName, _ = maxF["name"].(string)
+					maxScoreFieldNullable = isNullable(maxF["type"])
+				}
+				if evalF := getField(efDef, "evaluatedAt"); evalF != nil {
+					evaluatedAtFieldName, _ = evalF["name"].(string)
+					evaluatedAtFieldNullable = isNullable(evalF["type"])
+				}
+				break
+			}
+		}
+		if edgeScoreFieldName == "" {
+			return nil, errors.New("unable to locate score field on scorecard edge")
+		}
+		// Node acts as scorecard ref
+		if idF := getField(nodeDef, "id"); idF != nil {
+			nodeScorecardIDFieldName, _ = idF["name"].(string)
+		}
+		if nameF := getField(nodeDef, "name"); nameF != nil {
+			nodeScorecardNameFieldName, _ = nameF["name"].(string)
+		} else if nameF := getField(nodeDef, "displayName"); nameF != nil {
+			nodeScorecardNameFieldName, _ = nameF["name"].(string)
+		}
+		// For compat: set scorecard IDs to node values
+		scorecardIDFieldName = nodeScorecardIDFieldName
+		if nodeScorecardNameFieldName != "" {
+			scorecardNameFieldName = nodeScorecardNameFieldName
+		}
+	} else {
+		// Node-level scoring
+		scoreField := getField(nodeDef, "score")
+		if scoreField == nil {
+			return nil, errors.New("scorecard node missing score field")
+		}
+		scoreFieldName, _ = scoreField["name"].(string)
+		scoreFieldNullable = isNullable(scoreField["type"])
+
+		if maxScoreField := getField(nodeDef, "maxScore"); maxScoreField != nil {
+			maxScoreFieldName, _ = maxScoreField["name"].(string)
+			maxScoreFieldNullable = isNullable(maxScoreField["type"])
+		}
+
+		if evaluatedAtField := getField(nodeDef, "evaluatedAt"); evaluatedAtField != nil {
+			evaluatedAtFieldName, _ = evaluatedAtField["name"].(string)
+			evaluatedAtFieldNullable = isNullable(evaluatedAtField["type"])
+		}
+
+		scorecardField := getField(nodeDef, "scorecard")
+		if scorecardField == nil {
+			return nil, errors.New("scorecard node missing scorecard field")
+		}
+		scorecardFieldName, _ = scorecardField["name"].(string)
+		scorecardTypeName, _ := unwrapNamedType(scorecardField["type"])
+		scorecardDef := types[scorecardTypeName]
+		if scorecardDef == nil {
+			return nil, fmt.Errorf("missing scorecard type definition: %s", scorecardTypeName)
+		}
+		scorecardIDField := getField(scorecardDef, "id")
+		if scorecardIDField == nil {
+			return nil, fmt.Errorf("scorecard type %s missing id field", scorecardTypeName)
+		}
+		scorecardIDFieldName, _ = scorecardIDField["name"].(string)
+		scorecardIDFieldNullable = isNullable(scorecardIDField["type"])
+		scorecardNameField := getField(scorecardDef, "name")
+		if scorecardNameField == nil {
+			scorecardNameField = getField(scorecardDef, "displayName")
+		}
+		if scorecardNameField != nil {
+			scorecardNameFieldName, _ = scorecardNameField["name"].(string)
+			scorecardNameFieldNullable = isNullable(scorecardNameField["type"])
+		}
 	}
 
 	var errorMessageNullable bool
@@ -702,6 +834,11 @@ func discoverConfig(schema map[string]any) (*config, error) {
 		PageInfoEndCursorNullable: pageInfoEndCursorNullable,
 		EdgeHasCursor:             edgeHasCursor,
 		ConnectionHasNodes:        connectionHasNodes,
+
+		ScoreOnEdge:                scoreOnEdge,
+		EdgeScoreFieldName:         edgeScoreFieldName,
+		NodeScorecardIDFieldName:   nodeScorecardIDFieldName,
+		NodeScorecardNameFieldName: nodeScorecardNameFieldName,
 
 		ScoreFieldName:     scoreFieldName,
 		ScoreFieldNullable: scoreFieldNullable,
@@ -750,29 +887,52 @@ func renderGo(cfg *config) (string, error) {
 	}
 	pageInfoSelect += " }"
 
-	nodeFields := []string{cfg.ScoreFieldName}
-	if cfg.MaxScoreFieldName != "" {
-		nodeFields = append(nodeFields, cfg.MaxScoreFieldName)
-	}
-	if cfg.EvaluatedAtFieldName != "" {
-		nodeFields = append(nodeFields, cfg.EvaluatedAtFieldName)
-	}
-	scorecardSelect := cfg.ScorecardFieldName + " { " + cfg.ScorecardIDFieldName
-	if cfg.ScorecardNameFieldName != "" {
-		scorecardSelect += " " + cfg.ScorecardNameFieldName
-	}
-	scorecardSelect += " }"
-	nodeFields = append(nodeFields, scorecardSelect)
+	var edgeSelect string
+	var nodesSelect string
 
-	nodeSelect := strings.Join(nodeFields, " ")
-	edgeSelect := "node { " + nodeSelect + " }"
-	if cfg.EdgeHasCursor {
-		edgeSelect = "cursor " + edgeSelect
-	}
+	if cfg.ScoreOnEdge {
+		// Edge-level: node holds scorecard ref (id + name), edge holds score object
+		nodeRefFields := cfg.NodeScorecardIDFieldName
+		if cfg.NodeScorecardNameFieldName != "" {
+			nodeRefFields += " " + cfg.NodeScorecardNameFieldName
+		}
+		scoreObjFields := cfg.ScoreFieldName
+		if cfg.MaxScoreFieldName != "" {
+			scoreObjFields += " " + cfg.MaxScoreFieldName
+		}
+		if cfg.EvaluatedAtFieldName != "" {
+			scoreObjFields += " " + cfg.EvaluatedAtFieldName
+		}
+		edgeSelect = fmt.Sprintf("node { %s } %s { %s }", nodeRefFields, cfg.EdgeScoreFieldName, scoreObjFields)
+		if cfg.EdgeHasCursor {
+			edgeSelect = "cursor " + edgeSelect
+		}
+		// nodes connection is not useful for edge-level scoring (score lives on edge, not node)
+		nodesSelect = ""
+	} else {
+		nodeFields := []string{cfg.ScoreFieldName}
+		if cfg.MaxScoreFieldName != "" {
+			nodeFields = append(nodeFields, cfg.MaxScoreFieldName)
+		}
+		if cfg.EvaluatedAtFieldName != "" {
+			nodeFields = append(nodeFields, cfg.EvaluatedAtFieldName)
+		}
+		scorecardSelect := cfg.ScorecardFieldName + " { " + cfg.ScorecardIDFieldName
+		if cfg.ScorecardNameFieldName != "" {
+			scorecardSelect += " " + cfg.ScorecardNameFieldName
+		}
+		scorecardSelect += " }"
+		nodeFields = append(nodeFields, scorecardSelect)
 
-	nodesSelect := ""
-	if cfg.ConnectionHasNodes {
-		nodesSelect = "nodes { " + nodeSelect + " }"
+		nodeSelect := strings.Join(nodeFields, " ")
+		edgeSelect = "node { " + nodeSelect + " }"
+		if cfg.EdgeHasCursor {
+			edgeSelect = "cursor " + edgeSelect
+		}
+
+		if cfg.ConnectionHasNodes {
+			nodesSelect = "nodes { " + nodeSelect + " }"
+		}
 	}
 
 	errorFragment := ""
@@ -803,7 +963,7 @@ func renderGo(cfg *config) (string, error) {
 `, cfg.ComponentIDType, cfg.ComponentTypeName, cfg.ScorecardsFieldName, pageInfoSelect, edgeSelect, nodesSelect, errorFragment)
 
 	pageInfoLines := []string{
-		"type PageInfo struct {",
+		"type CompassScorecardPageInfo struct {",
 		"\tHasNextPage bool " + jsonTag("hasNextPage", false),
 	}
 	if cfg.PageInfoHasEndCursor {
@@ -828,7 +988,10 @@ func renderGo(cfg *config) (string, error) {
 		")",
 		"",
 		"const (",
-		fmt.Sprintf("\tCompassComponentScorecardsConnectionTypename = %q", cfg.ConnectionTypeName),
+		// CompassComponentScorecardsConnectionTypename is the __typename of the component
+		// when it successfully resolves (e.g. "CompassComponent"). The scorecards
+		// connection is nested inside it.
+		fmt.Sprintf("\tCompassComponentScorecardsConnectionTypename = %q", cfg.ComponentTypeName),
 	}
 	if cfg.ErrorTypeName != "" {
 		lines = append(lines, fmt.Sprintf("\tCompassComponentScorecardsErrorTypename = %q", cfg.ErrorTypeName))
@@ -841,50 +1004,110 @@ func renderGo(cfg *config) (string, error) {
 	)
 
 	lines = append(lines, pageInfoLines...)
-	lines = append(lines,
-		"",
-		"type CompassScorecardRef struct {",
-		"\tID "+scorecardIDType+" "+jsonTag(cfg.ScorecardIDFieldName, cfg.ScorecardIDFieldNullable),
-	)
-	if cfg.ScorecardNameFieldName != "" {
-		lines = append(lines, "\tName "+scorecardNameType+" "+jsonTag(cfg.ScorecardNameFieldName, cfg.ScorecardNameFieldNullable))
+	lines = append(lines, "")
+
+	if cfg.ScoreOnEdge {
+		// Edge-level scoring: generate raw edge structs for JSON, plus a merged CompassScorecardNode
+		// CompassScorecardNodeRef - the node part of the edge (scorecard id + name)
+		lines = append(lines,
+			"type CompassScorecardNodeRef struct {",
+			"\tID "+scorecardIDType+" "+jsonTag(cfg.NodeScorecardIDFieldName, cfg.ScorecardIDFieldNullable),
+		)
+		if cfg.NodeScorecardNameFieldName != "" {
+			lines = append(lines, "\tName "+scorecardNameType+" "+jsonTag(cfg.NodeScorecardNameFieldName, cfg.ScorecardNameFieldNullable))
+		}
+		lines = append(lines, "}", "")
+
+		// CompassScorecardScoreObject - the score object on the edge
+		lines = append(lines,
+			"type CompassScorecardScoreObject struct {",
+			"\tScore "+scoreType+" "+jsonTag(cfg.ScoreFieldName, cfg.ScoreFieldNullable),
+		)
+		if cfg.MaxScoreFieldName != "" {
+			lines = append(lines, "\tMaxScore "+maxScoreType+" "+jsonTag(cfg.MaxScoreFieldName, cfg.MaxScoreFieldNullable))
+		}
+		if cfg.EvaluatedAtFieldName != "" {
+			lines = append(lines, "\tEvaluatedAt "+evaluatedAtType+" "+jsonTag(cfg.EvaluatedAtFieldName, cfg.EvaluatedAtFieldNullable))
+		}
+		lines = append(lines, "}", "")
+
+		// CompassScorecardNode - merged view (populated by decode, not JSON-unmarshaled directly)
+		lines = append(lines,
+			"type CompassScorecardNode struct {",
+			"\tScorecardID   string",
+			"\tScorecardName *string",
+			"\tScore         float64",
+			"\tMaxScore      *float64",
+			"\tEvaluatedAt   *string",
+			"}", "",
+		)
+
+		// CompassScorecardRawEdge - what JSON actually contains
+		lines = append(lines,
+			"type CompassScorecardRawEdge struct {",
+		)
+		if cfg.EdgeHasCursor {
+			lines = append(lines, "\tCursor *string "+jsonTag("cursor", true))
+		}
+		lines = append(lines,
+			"\tNode        CompassScorecardNodeRef    "+jsonTag("node", false),
+			"\tScoreObject CompassScorecardScoreObject "+jsonTag(cfg.EdgeScoreFieldName, false),
+			"}", "",
+		)
+
+		// CompassScorecardEdge - the decoded edge with merged node
+		lines = append(lines,
+			"type CompassScorecardEdge struct {",
+		)
+		if cfg.EdgeHasCursor {
+			lines = append(lines, "\tCursor *string")
+		}
+		lines = append(lines,
+			"\tNode CompassScorecardNode",
+			"}", "",
+		)
+
+		// CompassScorecardRawConnection - for JSON unmarshaling
+		lines = append(lines,
+			"type CompassScorecardRawConnection struct {",
+			"\tPageInfo CompassScorecardPageInfo    "+jsonTag("pageInfo", false),
+			"\tEdges    []CompassScorecardRawEdge   "+jsonTag("edges", false),
+			"}", "",
+		)
+	} else {
+		// Node-level scoring: CompassScorecardRef + CompassScorecardNode with embedded score
+		lines = append(lines,
+			"type CompassScorecardRef struct {",
+			"\tID "+scorecardIDType+" "+jsonTag(cfg.ScorecardIDFieldName, cfg.ScorecardIDFieldNullable),
+		)
+		if cfg.ScorecardNameFieldName != "" {
+			lines = append(lines, "\tName "+scorecardNameType+" "+jsonTag(cfg.ScorecardNameFieldName, cfg.ScorecardNameFieldNullable))
+		}
+		lines = append(lines,
+			"}", "",
+			"type CompassScorecardNode struct {",
+			"\tScorecard *CompassScorecardRef "+jsonTag(cfg.ScorecardFieldName, true),
+			"\tScore "+scoreType+" "+jsonTag(cfg.ScoreFieldName, cfg.ScoreFieldNullable),
+		)
+		if cfg.MaxScoreFieldName != "" {
+			lines = append(lines, "\tMaxScore "+maxScoreType+" "+jsonTag(cfg.MaxScoreFieldName, cfg.MaxScoreFieldNullable))
+		}
+		if cfg.EvaluatedAtFieldName != "" {
+			lines = append(lines, "\tEvaluatedAt "+evaluatedAtType+" "+jsonTag(cfg.EvaluatedAtFieldName, cfg.EvaluatedAtFieldNullable))
+		}
+		lines = append(lines, "}", "")
 	}
+
+	// CompassScorecardConnection — always needed
 	lines = append(lines,
-		"}",
-		"",
-		"type CompassScorecardNode struct {",
-		"\tScorecard *CompassScorecardRef "+jsonTag(cfg.ScorecardFieldName, true),
-		"\tScore "+scoreType+" "+jsonTag(cfg.ScoreFieldName, cfg.ScoreFieldNullable),
-	)
-	if cfg.MaxScoreFieldName != "" {
-		lines = append(lines, "\tMaxScore "+maxScoreType+" "+jsonTag(cfg.MaxScoreFieldName, cfg.MaxScoreFieldNullable))
-	}
-	if cfg.EvaluatedAtFieldName != "" {
-		lines = append(lines, "\tEvaluatedAt "+evaluatedAtType+" "+jsonTag(cfg.EvaluatedAtFieldName, cfg.EvaluatedAtFieldNullable))
-	}
-	lines = append(lines,
-		"}",
-		"",
-		"type CompassScorecardEdge struct {",
-	)
-	if cfg.EdgeHasCursor {
-		lines = append(lines, "\tCursor *string "+jsonTag("cursor", true))
-	}
-	lines = append(lines,
-		"\tNode CompassScorecardNode "+jsonTag("node", false),
-		"}",
-		"",
 		"type CompassScorecardConnection struct {",
-		"\tPageInfo PageInfo "+jsonTag("pageInfo", false),
-		"\tEdges []CompassScorecardEdge "+jsonTag("edges", false),
+		"\tPageInfo CompassScorecardPageInfo "+jsonTag("pageInfo", false),
+		"\tEdges    []CompassScorecardEdge   "+jsonTag("edges", false),
 	)
-	if cfg.ConnectionHasNodes {
+	if cfg.ConnectionHasNodes && !cfg.ScoreOnEdge {
 		lines = append(lines, "\tNodes []CompassScorecardNode "+jsonTag("nodes", false))
 	}
-	lines = append(lines,
-		"}",
-		"",
-	)
+	lines = append(lines, "}", "")
 
 	if cfg.ErrorTypeName != "" {
 		errorMessageType := goType("string", cfg.ErrorMessageNullable)
@@ -912,36 +1135,109 @@ func renderGo(cfg *config) (string, error) {
 		)
 	}
 
+	// CompassComponentScorecardsResult — custom UnmarshalJSON; for edge-level scoring we
+	// unmarshal into CompassScorecardRawConnection first and then convert.
 	lines = append(lines,
 		"type CompassComponentScorecardsResult struct {",
-		"\tTypename string `json:\"__typename\"`",
+		"\tTypename   string                     `json:\"__typename\"`",
 		"\tConnection *CompassScorecardConnection `json:\"-\"`",
 	)
 	if cfg.ErrorTypeName != "" {
 		lines = append(lines, "\tError *CompassComponentScorecardsError `json:\"-\"`")
 	}
-	lines = append(lines,
-		"}",
-		"",
-		"func (r *CompassComponentScorecardsResult) UnmarshalJSON(data []byte) error {",
-		"\tvar base struct {",
-		"\t\tTypename string `json:\"__typename\"`",
-		"\t}",
-		"\tif err := json.Unmarshal(data, &base); err != nil {",
-		"\t\treturn err",
-		"\t}",
-		"\tif base.Typename == \"\" {",
-		"\t\treturn errors.New(\"missing __typename for component\")",
-		"\t}",
-		"\tr.Typename = base.Typename",
-		"\tswitch base.Typename {",
-		"\tcase CompassComponentScorecardsConnectionTypename:",
-		"\t\tvar conn CompassScorecardConnection",
-		"\t\tif err := json.Unmarshal(data, &conn); err != nil {",
-		"\t\t\treturn err",
-		"\t\t}",
-		"\t\tr.Connection = &conn",
-	)
+	lines = append(lines, "}", "")
+
+	if cfg.ScoreOnEdge {
+		// UnmarshalJSON for edge-level: data is the component object {"__typename":"CompassComponent","appliedScorecards":{...}}
+		// We need to extract the nested scorecards field and convert each edge
+		lines = append(lines,
+			"func (r *CompassComponentScorecardsResult) UnmarshalJSON(data []byte) error {",
+			"\tvar base struct {",
+			"\t\tTypename string `json:\"__typename\"`",
+			"\t}",
+			"\tif err := json.Unmarshal(data, &base); err != nil {",
+			"\t\treturn err",
+			"\t}",
+			"\tif base.Typename == \"\" {",
+			"\t\treturn errors.New(\"missing __typename for component\")",
+			"\t}",
+			"\tr.Typename = base.Typename",
+			"\tswitch base.Typename {",
+			"\tcase CompassComponentScorecardsConnectionTypename:",
+			"\t\tvar wrapper struct {",
+			fmt.Sprintf("\t\t\tScorecards CompassScorecardRawConnection `json:%q`", cfg.ScorecardsFieldName),
+			"\t\t}",
+			"\t\tif err := json.Unmarshal(data, &wrapper); err != nil {",
+			"\t\t\treturn err",
+			"\t\t}",
+			"\t\traw := wrapper.Scorecards",
+			"\t\tconn := CompassScorecardConnection{",
+			"\t\t\tPageInfo: raw.PageInfo,",
+			"\t\t\tEdges:    make([]CompassScorecardEdge, len(raw.Edges)),",
+			"\t\t}",
+			"\t\tfor i, re := range raw.Edges {",
+			"\t\t\tvar scorecardName *string",
+			"\t\t\tif re.Node.Name != nil && *re.Node.Name != \"\" {",
+			"\t\t\t\tv := *re.Node.Name",
+			"\t\t\t\tscorecardName = &v",
+			"\t\t\t}",
+			"\t\t\tvar maxScore *float64",
+			"\t\t\tif re.ScoreObject.MaxScore != 0 {",
+			"\t\t\t\tv := re.ScoreObject.MaxScore",
+			"\t\t\t\tmaxScore = &v",
+			"\t\t\t}",
+			"\t\t\tnode := CompassScorecardNode{",
+			"\t\t\t\tScorecardID:   re.Node.ID,",
+			"\t\t\t\tScorecardName: scorecardName,",
+			"\t\t\t\tScore:         re.ScoreObject.Score,",
+			"\t\t\t\tMaxScore:      maxScore,",
+			"\t\t\t}",
+		)
+		if cfg.EvaluatedAtFieldName != "" {
+			lines = append(lines,
+				"\t\t\tif re.ScoreObject.EvaluatedAt != \"\" {",
+				"\t\t\t\tv := re.ScoreObject.EvaluatedAt",
+				"\t\t\t\tnode.EvaluatedAt = &v",
+				"\t\t\t}",
+			)
+		}
+		lines = append(lines,
+			"\t\t\tedge := CompassScorecardEdge{Node: node}",
+		)
+		if cfg.EdgeHasCursor {
+			lines = append(lines, "\t\t\tedge.Cursor = re.Cursor")
+		}
+		lines = append(lines,
+			"\t\t\tconn.Edges[i] = edge",
+			"\t\t}",
+			"\t\tr.Connection = &conn",
+		)
+	} else {
+		lines = append(lines,
+			"func (r *CompassComponentScorecardsResult) UnmarshalJSON(data []byte) error {",
+			"\tvar base struct {",
+			"\t\tTypename string `json:\"__typename\"`",
+			"\t}",
+			"\tif err := json.Unmarshal(data, &base); err != nil {",
+			"\t\treturn err",
+			"\t}",
+			"\tif base.Typename == \"\" {",
+			"\t\treturn errors.New(\"missing __typename for component\")",
+			"\t}",
+			"\tr.Typename = base.Typename",
+			"\tswitch base.Typename {",
+			"\tcase CompassComponentScorecardsConnectionTypename:",
+			"\t\tvar wrapper struct {",
+			fmt.Sprintf("\t\t\tScorecards CompassScorecardConnection `json:%q`", cfg.ScorecardsFieldName),
+			"\t\t}",
+			"\t\tif err := json.Unmarshal(data, &wrapper); err != nil {",
+			"\t\t\treturn err",
+			"\t\t}",
+			"\t\tconn := wrapper.Scorecards",
+			"\t\tr.Connection = &conn",
+		)
+	}
+
 	if cfg.ErrorTypeName != "" {
 		lines = append(lines,
 			"\tcase CompassComponentScorecardsErrorTypename:",

@@ -281,6 +281,159 @@ func (c *Client) Execute(ctx context.Context, query string, variables map[string
 	}
 }
 
+// ExecuteWithExtraHeaders is identical to Execute but also sets the provided
+// extraHeaders on the HTTP request. This is used for APIs that require headers
+// beyond the standard ExperimentalApi set (e.g. X-Force-Dynamo for Teamwork Graph).
+func (c *Client) ExecuteWithExtraHeaders(ctx context.Context, query string, variables map[string]any, operationName string, experimentalAPIs []string, estimatedCost int, extraHeaders map[string]string) (*atlassian.Result, error) {
+	if len(extraHeaders) == 0 {
+		return c.Execute(ctx, query, variables, operationName, experimentalAPIs, estimatedCost)
+	}
+
+	if strings.TrimSpace(query) == "" {
+		return nil, errors.New("query must be provided")
+	}
+	graphQLURL, err := buildGraphQLURL(c.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	httpClient := c.HTTPClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: defaultTimeout}
+	}
+
+	nowFn := c.Now
+	if nowFn == nil {
+		nowFn = time.Now
+	}
+	sleepFn := c.Sleep
+	if sleepFn == nil {
+		sleepFn = time.Sleep
+	}
+
+	maxRetries := c.MaxRetries429
+	if maxRetries == 0 {
+		maxRetries = defaultRetries429
+	}
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+	maxWait := c.MaxWait
+	if maxWait <= 0 {
+		maxWait = defaultMaxWait
+	}
+	cost := estimatedCost
+	if cost <= 0 {
+		cost = 1
+	}
+
+	var bucket *tokenBucket
+	if c.EnableLocalThrottling {
+		if c.localBucket == nil {
+			c.localBucket = newTokenBucket(nowFn, sleepFn)
+		} else {
+			c.localBucket.now = nowFn
+			c.localBucket.sleep = sleepFn
+		}
+		bucket = c.localBucket
+	}
+
+	payload := atlassian.GraphQLRequest{
+		Query:         query,
+		Variables:     variables,
+		OperationName: operationName,
+	}
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	attempt := 0
+	for {
+		attempt++
+		if bucket != nil {
+			_, lerr := bucket.consume(float64(cost), maxWait)
+			if lerr != nil {
+				return nil, lerr
+			}
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, graphQLURL, bytes.NewReader(bodyBytes))
+		if err != nil {
+			return nil, fmt.Errorf("build request: %w", err)
+		}
+
+		h := req.Header
+		h.Set("Content-Type", "application/json")
+		h.Set("Accept", "application/json")
+		ua := c.UserAgent
+		if ua == "" {
+			ua = defaultUserAgent
+		}
+		h.Set("User-Agent", ua)
+		for _, beta := range experimentalAPIs {
+			if strings.TrimSpace(beta) != "" {
+				h.Add("X-ExperimentalApi", beta)
+			}
+		}
+		for k, v := range extraHeaders {
+			if k != "" && v != "" {
+				h.Set(k, v)
+			}
+		}
+
+		if c.Auth != nil {
+			if err := c.Auth.Apply(req); err != nil {
+				return nil, fmt.Errorf("apply auth: %w", err)
+			}
+		}
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("execute request: %w", err)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read response: %w", err)
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			if attempt > maxRetries {
+				return nil, &atlassian.RateLimitError{
+					Attempts: attempt,
+				}
+			}
+			sleepFn(defaultMaxWait / 10)
+			continue
+		}
+
+		if resp.StatusCode >= http.StatusInternalServerError {
+			return nil, &atlassian.TransportError{StatusCode: resp.StatusCode, BodySnippet: string(body)}
+		}
+		if resp.StatusCode >= http.StatusBadRequest {
+			return nil, &atlassian.TransportError{StatusCode: resp.StatusCode, BodySnippet: string(body)}
+		}
+
+		var result atlassian.Result
+		if len(body) > 0 {
+			if err := json.Unmarshal(body, &result); err != nil {
+				return nil, &atlassian.JSONError{Err: err}
+			}
+		}
+
+		if c.Strict && len(result.Errors) > 0 {
+			return nil, &atlassian.GraphQLOperationError{
+				Errors:      result.Errors,
+				PartialData: result.Data,
+			}
+		}
+
+		return &result, nil
+	}
+}
+
 func extractRequestID(body []byte) string {
 	if len(body) == 0 {
 		return ""

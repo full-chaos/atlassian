@@ -37,12 +37,21 @@ class _Config:
     connection_has_nodes: bool
     query_error_has_extensions: bool
     query_error_extensions_has_status_code: bool
+    # When score_on_edge is True, score/max_score fields are on the edge (not the node),
+    # and the node provides scorecard id/name.
+    score_on_edge: bool
+    # Name of the edge-level score object field (e.g. "scorecardScore"), only used when score_on_edge=True
+    edge_score_field_name: Optional[str]
     score_field_name: str
     score_field_nullable: bool
     max_score_field_name: Optional[str]
     max_score_field_nullable: bool
     evaluated_at_field_name: Optional[str]
     evaluated_at_field_nullable: bool
+    # When score_on_edge=True, the node itself acts as the scorecard ref (id/name come from node)
+    node_as_scorecard: bool
+    node_scorecard_id_field_name: str
+    node_scorecard_name_field_name: Optional[str]
     scorecard_field_name: Optional[str]
     scorecard_id_field_name: str
     scorecard_id_field_nullable: bool
@@ -272,10 +281,24 @@ def _discover_component_type(
 
 def _discover_scorecards_field(
     types: Dict[str, Dict[str, Any]], component_def: Dict[str, Any]
-) -> Tuple[str, Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[str, Dict[str, Any], Dict[str, Any], Optional[Dict[str, Any]]]:
+    """Return (field_name, connection_def, node_def, edge_def_if_score_on_edge).
+
+    Two patterns are supported:
+    1. Node-level scoring: edge.node has 'score' and ('scorecard' or 'scorecardId').
+       Returns (field_name, connection_def, node_def, None).
+    2. Edge-level scoring: edge has a score-object field (e.g. 'scorecardScore' with
+       'totalScore') and edge.node has 'id'+'name' (acting as the scorecard ref).
+       Returns (field_name, connection_def, node_def, edge_def).
+    """
     fields = component_def.get("fields")
     if not isinstance(fields, list):
         raise RuntimeError("CompassComponent type has no fields")
+
+    # Collect candidates - prefer node-level first, then edge-level
+    node_level_candidates: List[Tuple[str, Dict[str, Any], Dict[str, Any]]] = []
+    edge_level_candidates: List[Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any]]] = []
+
     for field in fields:
         if not isinstance(field, dict):
             continue
@@ -315,14 +338,42 @@ def _discover_scorecards_field(
         node_def = types.get(node_type_name)
         if not node_def:
             continue
-        if _field(node_def, "score") is None:
-            continue
-        if (
-            _field(node_def, "scorecard") is None
-            and _field(node_def, "scorecardId") is None
+
+        # Pattern 1: node-level scoring
+        if _field(node_def, "score") is not None and (
+            _field(node_def, "scorecard") is not None
+            or _field(node_def, "scorecardId") is not None
         ):
+            node_level_candidates.append((field_name, connection_def, node_def))
             continue
-        return field_name, connection_def, node_def
+
+        # Pattern 2: edge-level scoring (edge has a score-object field, node has id+name)
+        if _has_fields(node_def, ["id", "name"]):
+            # Look for an edge field that contains score data (e.g. 'scorecardScore' with 'totalScore')
+            edge_fields = edge_def.get("fields") or []
+            for ef in edge_fields:
+                ef_name = ef.get("name")
+                if not ef_name or ef_name in ("cursor", "node", "activeWorkItems"):
+                    continue
+                ef_type_name, _, _ = _unwrap_named_type(ef.get("type") or {})
+                if not ef_type_name:
+                    continue
+                ef_def = types.get(ef_type_name)
+                if not ef_def:
+                    continue
+                # Check if this field has a 'totalScore' or 'score' field
+                if _field(ef_def, "totalScore") is not None or _field(ef_def, "score") is not None:
+                    edge_level_candidates.append((field_name, connection_def, node_def, edge_def))
+                    break
+
+    if node_level_candidates:
+        field_name, connection_def, node_def = node_level_candidates[0]
+        return field_name, connection_def, node_def, None
+
+    if edge_level_candidates:
+        field_name, connection_def, node_def, edge_def = edge_level_candidates[0]
+        return field_name, connection_def, node_def, edge_def
+
     raise RuntimeError("Unable to locate scorecards field on CompassComponent")
 
 
@@ -372,9 +423,10 @@ def _discover_config(schema: Dict[str, Any]) -> _Config:
     if not isinstance(component_type_name, str) or not component_type_name:
         raise RuntimeError("Invalid CompassComponent type name")
 
-    scorecards_field_name, connection_def, node_def = _discover_scorecards_field(
+    scorecards_field_name, connection_def, node_def, score_edge_def = _discover_scorecards_field(
         types, component_def
     )
+    score_on_edge = score_edge_def is not None
 
     connection_type_name = connection_def.get("name")
     if not isinstance(connection_type_name, str) or not connection_type_name:
@@ -402,55 +454,125 @@ def _discover_config(schema: Dict[str, Any]) -> _Config:
     edge_def = _require_type(types, edge_type_name)
     edge_has_cursor = _field(edge_def, "cursor") is not None
 
-    score_field = _require_field(
-        node_def, "score", f"type {node_def.get('name')}.fields"
-    )
-    score_field_name = score_field.get("name") or "score"
-    score_field_nullable = _is_nullable(score_field.get("type") or {})
-
-    max_score_field = _field(node_def, "maxScore")
-    max_score_field_name = max_score_field.get("name") if max_score_field else None
+    # Initialize defaults
+    score_field_name = "score"
+    score_field_nullable = True
+    max_score_field_name: Optional[str] = None
     max_score_field_nullable = True
-    if max_score_field:
-        max_score_field_nullable = _is_nullable(max_score_field.get("type") or {})
-
-    evaluated_field = _field(node_def, "evaluatedAt")
-    evaluated_at_field_name = evaluated_field.get("name") if evaluated_field else None
+    evaluated_at_field_name: Optional[str] = None
     evaluated_at_field_nullable = True
-    if evaluated_field:
-        evaluated_at_field_nullable = _is_nullable(evaluated_field.get("type") or {})
-
-    scorecard_field = _field(node_def, "scorecard")
+    scorecard_field_name: Optional[str] = None
     scorecard_id_field_name = "scorecardId"
     scorecard_id_field_nullable = False
     scorecard_name_field_name: Optional[str] = None
     scorecard_name_field_nullable = True
-    if scorecard_field:
-        scorecard_field_name = scorecard_field.get("name")
-        scorecard_type_name, _, _ = _unwrap_named_type(
-            scorecard_field.get("type") or {}
-        )
-        if not scorecard_type_name:
-            raise RuntimeError("Unable to resolve scorecard type for scorecards")
-        scorecard_def = _require_type(types, scorecard_type_name)
-        scorecard_id = _require_field(
-            scorecard_def, "id", f"type {scorecard_type_name}.fields"
-        )
-        scorecard_id_field_name = scorecard_id.get("name") or "id"
-        scorecard_id_field_nullable = _is_nullable(scorecard_id.get("type") or {})
-        name_field = _field(scorecard_def, "name") or _field(
-            scorecard_def, "displayName"
-        )
+    edge_score_field_name: Optional[str] = None
+    node_as_scorecard = False
+    node_scorecard_id_field_name = "id"
+    node_scorecard_name_field_name: Optional[str] = None
+
+    if score_on_edge:
+        # Edge-level scoring: find the edge field that has the score data
+        edge_fields = score_edge_def.get("fields") or []
+        for ef in edge_fields:
+            ef_name = ef.get("name")
+            if not ef_name or ef_name in ("cursor", "node", "activeWorkItems"):
+                continue
+            ef_type_name, _, _ = _unwrap_named_type(ef.get("type") or {})
+            if not ef_type_name:
+                continue
+            ef_type_def = types.get(ef_type_name)
+            if not ef_type_def:
+                continue
+            total_score_field = _field(ef_type_def, "totalScore")
+            plain_score_field = _field(ef_type_def, "score")
+            if total_score_field is not None:
+                edge_score_field_name = ef_name
+                score_field_name = total_score_field.get("name") or "totalScore"
+                score_field_nullable = _is_nullable(total_score_field.get("type") or {})
+                max_sf = _field(ef_type_def, "maxTotalScore")
+                if max_sf:
+                    max_score_field_name = max_sf.get("name")
+                    max_score_field_nullable = _is_nullable(max_sf.get("type") or {})
+                eval_sf = _field(ef_type_def, "evaluatedAt")
+                if eval_sf:
+                    evaluated_at_field_name = eval_sf.get("name")
+                    evaluated_at_field_nullable = _is_nullable(eval_sf.get("type") or {})
+                break
+            elif plain_score_field is not None:
+                edge_score_field_name = ef_name
+                score_field_name = plain_score_field.get("name") or "score"
+                score_field_nullable = _is_nullable(plain_score_field.get("type") or {})
+                max_sf = _field(ef_type_def, "maxScore")
+                if max_sf:
+                    max_score_field_name = max_sf.get("name")
+                    max_score_field_nullable = _is_nullable(max_sf.get("type") or {})
+                eval_sf = _field(ef_type_def, "evaluatedAt")
+                if eval_sf:
+                    evaluated_at_field_name = eval_sf.get("name")
+                    evaluated_at_field_nullable = _is_nullable(eval_sf.get("type") or {})
+                break
+
+        if not edge_score_field_name:
+            raise RuntimeError("Unable to locate score field on scorecard edge")
+
+        # Node acts as scorecard ref: use node.id and node.name
+        node_as_scorecard = True
+        id_field = _field(node_def, "id")
+        node_scorecard_id_field_name = id_field.get("name") if id_field else "id"
+        name_field = _field(node_def, "name") or _field(node_def, "displayName")
         if name_field:
-            scorecard_name_field_name = name_field.get("name")
-            scorecard_name_field_nullable = _is_nullable(name_field.get("type") or {})
+            node_scorecard_name_field_name = name_field.get("name")
+        # For backwards compat with rest of config
+        scorecard_id_field_name = node_scorecard_id_field_name
+        scorecard_id_field_nullable = False
+        scorecard_name_field_name = node_scorecard_name_field_name
+        scorecard_name_field_nullable = True
     else:
-        scorecard_field_name = None
-        scorecard_id_field = _field(node_def, "scorecardId")
-        if not scorecard_id_field:
-            raise RuntimeError("Scorecard node missing scorecard or scorecardId field")
-        scorecard_id_field_name = scorecard_id_field.get("name") or "scorecardId"
-        scorecard_id_field_nullable = _is_nullable(scorecard_id_field.get("type") or {})
+        # Node-level scoring
+        score_field = _require_field(
+            node_def, "score", f"type {node_def.get('name')}.fields"
+        )
+        score_field_name = score_field.get("name") or "score"
+        score_field_nullable = _is_nullable(score_field.get("type") or {})
+
+        max_score_field = _field(node_def, "maxScore")
+        if max_score_field:
+            max_score_field_name = max_score_field.get("name")
+            max_score_field_nullable = _is_nullable(max_score_field.get("type") or {})
+
+        evaluated_field = _field(node_def, "evaluatedAt")
+        if evaluated_field:
+            evaluated_at_field_name = evaluated_field.get("name")
+            evaluated_at_field_nullable = _is_nullable(evaluated_field.get("type") or {})
+
+        scorecard_field = _field(node_def, "scorecard")
+        if scorecard_field:
+            scorecard_field_name = scorecard_field.get("name")
+            scorecard_type_name, _, _ = _unwrap_named_type(
+                scorecard_field.get("type") or {}
+            )
+            if not scorecard_type_name:
+                raise RuntimeError("Unable to resolve scorecard type for scorecards")
+            scorecard_def = _require_type(types, scorecard_type_name)
+            scorecard_id = _require_field(
+                scorecard_def, "id", f"type {scorecard_type_name}.fields"
+            )
+            scorecard_id_field_name = scorecard_id.get("name") or "id"
+            scorecard_id_field_nullable = _is_nullable(scorecard_id.get("type") or {})
+            name_field = _field(scorecard_def, "name") or _field(
+                scorecard_def, "displayName"
+            )
+            if name_field:
+                scorecard_name_field_name = name_field.get("name")
+                scorecard_name_field_nullable = _is_nullable(name_field.get("type") or {})
+        else:
+            scorecard_field_name = None
+            scorecard_id_field = _field(node_def, "scorecardId")
+            if not scorecard_id_field:
+                raise RuntimeError("Scorecard node missing scorecard or scorecardId field")
+            scorecard_id_field_name = scorecard_id_field.get("name") or "scorecardId"
+            scorecard_id_field_nullable = _is_nullable(scorecard_id_field.get("type") or {})
 
     error_type_name: Optional[str] = None
     query_error_has_extensions = False
@@ -483,12 +605,17 @@ def _discover_config(schema: Dict[str, Any]) -> _Config:
         connection_has_nodes=connection_has_nodes,
         query_error_has_extensions=query_error_has_extensions,
         query_error_extensions_has_status_code=query_error_extensions_has_status_code,
+        score_on_edge=score_on_edge,
+        edge_score_field_name=edge_score_field_name,
         score_field_name=score_field_name,
         score_field_nullable=score_field_nullable,
         max_score_field_name=max_score_field_name,
         max_score_field_nullable=max_score_field_nullable,
         evaluated_at_field_name=evaluated_at_field_name,
         evaluated_at_field_nullable=evaluated_at_field_nullable,
+        node_as_scorecard=node_as_scorecard,
+        node_scorecard_id_field_name=node_scorecard_id_field_name,
+        node_scorecard_name_field_name=node_scorecard_name_field_name,
         scorecard_field_name=scorecard_field_name,
         scorecard_id_field_name=scorecard_id_field_name,
         scorecard_id_field_nullable=scorecard_id_field_nullable,
@@ -502,37 +629,79 @@ def _render_python(cfg: _Config) -> str:
     if cfg.pageinfo_has_end_cursor:
         pageinfo_select += " endCursor"
 
-    edges_select = "node {"
-    if cfg.edge_has_cursor:
-        edges_select = "cursor\n          node {"
+    if cfg.score_on_edge and cfg.edge_score_field_name:
+        # Edge-level scoring: edge has cursor + node (scorecard ref) + score-object field
+        node_ref_fields = [cfg.node_scorecard_id_field_name]
+        if cfg.node_scorecard_name_field_name:
+            node_ref_fields.append(cfg.node_scorecard_name_field_name)
+        node_ref_select = " ".join(node_ref_fields)
 
-    scorecard_select = ""
-    if cfg.scorecard_field_name:
-        scorecard_name_select = (
-            f" {cfg.scorecard_name_field_name}" if cfg.scorecard_name_field_name else ""
-        )
-        scorecard_select = (
-            f"{cfg.scorecard_field_name} {{ {cfg.scorecard_id_field_name}"
-            f"{scorecard_name_select} }}"
-        )
+        score_obj_fields = [cfg.score_field_name]
+        if cfg.max_score_field_name:
+            score_obj_fields.append(cfg.max_score_field_name)
+        if cfg.evaluated_at_field_name:
+            score_obj_fields.append(cfg.evaluated_at_field_name)
+        score_obj_select = " ".join(score_obj_fields)
 
-    node_fields = [cfg.score_field_name]
-    if cfg.max_score_field_name:
-        node_fields.append(cfg.max_score_field_name)
-    if cfg.evaluated_at_field_name:
-        node_fields.append(cfg.evaluated_at_field_name)
-    if scorecard_select:
-        node_fields.append(scorecard_select)
+        edge_inner_parts = [
+            f"node {{ {node_ref_select} }}",
+            f"{cfg.edge_score_field_name} {{ {score_obj_select} }}",
+        ]
+        if cfg.edge_has_cursor:
+            edge_inner_parts = ["cursor"] + edge_inner_parts
+        _edge_indent = "\n            "
+        edges_select = _edge_indent.join(edge_inner_parts)
+
+        nodes_select = ""  # edge-level scoring doesn't use nodes shortcut
+
+        query = f"""query CompassComponentScorecards(
+  $componentId: {cfg.component_id_type}
+) {{
+  compass {{
+    component(id: $componentId) {{
+      __typename
+      ... on {cfg.component_type_name} {{
+        {cfg.scorecards_field_name} {{
+          pageInfo {{ {pageinfo_select} }}
+          edges {{
+            {edges_select}
+          }}
+        }}
+      }}
+"""
     else:
-        node_fields.append(cfg.scorecard_id_field_name)
+        # Node-level scoring
+        edges_select = "node {"
+        if cfg.edge_has_cursor:
+            edges_select = "cursor\n          node {"
 
-    node_select = "\n            ".join(node_fields)
+        scorecard_select = ""
+        if cfg.scorecard_field_name:
+            scorecard_name_select = (
+                f" {cfg.scorecard_name_field_name}" if cfg.scorecard_name_field_name else ""
+            )
+            scorecard_select = (
+                f"{cfg.scorecard_field_name} {{ {cfg.scorecard_id_field_name}"
+                f"{scorecard_name_select} }}"
+            )
 
-    nodes_select = ""
-    if cfg.connection_has_nodes:
-        nodes_select = "\n        nodes {\n          " + node_select + "\n        }"
+        node_fields = [cfg.score_field_name]
+        if cfg.max_score_field_name:
+            node_fields.append(cfg.max_score_field_name)
+        if cfg.evaluated_at_field_name:
+            node_fields.append(cfg.evaluated_at_field_name)
+        if scorecard_select:
+            node_fields.append(scorecard_select)
+        else:
+            node_fields.append(cfg.scorecard_id_field_name)
 
-    query = f"""query CompassComponentScorecards(
+        node_select = "\n            ".join(node_fields)
+
+        nodes_select = ""
+        if cfg.connection_has_nodes:
+            nodes_select = "\n        nodes {\n          " + node_select + "\n        }"
+
+        query = f"""query CompassComponentScorecards(
   $componentId: {cfg.component_id_type}
 ) {{
   compass {{
@@ -567,6 +736,8 @@ def _render_python(cfg: _Config) -> str:
     max_score_field_name = cfg.max_score_field_name or ""
     evaluated_at_field_name = cfg.evaluated_at_field_name or ""
     scorecard_field_name = cfg.scorecard_field_name or ""
+    edge_score_field_name = cfg.edge_score_field_name or ""
+    node_scorecard_name_field_name = cfg.node_scorecard_name_field_name or ""
 
     return f"""# Code generated by python/tools/generate_compass_scorecard_models.py. DO NOT EDIT.
 from __future__ import annotations
@@ -586,12 +757,17 @@ QUERY_ERROR_EXTENSIONS_HAS_STATUS_CODE = {str(cfg.query_error_extensions_has_sta
 COMPONENT_RESULT_KIND = {cfg.component_result_kind!r}
 
 SCORECARDS_FIELD_NAME = {cfg.scorecards_field_name!r}
+SCORE_ON_EDGE = {str(cfg.score_on_edge)}
+EDGE_SCORE_FIELD_NAME = {edge_score_field_name!r}
 SCORE_FIELD_NAME = {cfg.score_field_name!r}
 SCORE_FIELD_NULLABLE = {str(cfg.score_field_nullable)}
 MAX_SCORE_FIELD_NAME = {max_score_field_name!r}
 MAX_SCORE_FIELD_NULLABLE = {str(cfg.max_score_field_nullable)}
 EVALUATED_AT_FIELD_NAME = {evaluated_at_field_name!r}
 EVALUATED_AT_FIELD_NULLABLE = {str(cfg.evaluated_at_field_nullable)}
+NODE_AS_SCORECARD = {str(cfg.node_as_scorecard)}
+NODE_SCORECARD_ID_FIELD_NAME = {cfg.node_scorecard_id_field_name!r}
+NODE_SCORECARD_NAME_FIELD_NAME = {node_scorecard_name_field_name!r}
 SCORECARD_FIELD_NAME = {scorecard_field_name!r}
 SCORECARD_ID_FIELD_NAME = {cfg.scorecard_id_field_name!r}
 SCORECARD_ID_FIELD_NULLABLE = {str(cfg.scorecard_id_field_nullable)}
@@ -729,8 +905,7 @@ class CompassScorecardNode:
     evaluated_at: Optional[str] = None
 
     @staticmethod
-    def from_dict(obj: Any, path: str) -> "CompassScorecardNode":
-        raw = _expect_dict(obj, path)
+    def _from_node_level(raw: Dict[str, Any], path: str) -> "CompassScorecardNode":
         if SCORE_FIELD_NULLABLE:
             score_value = _expect_optional_float(raw.get(SCORE_FIELD_NAME), f"{{path}}.{{SCORE_FIELD_NAME}}")
             if score_value is None:
@@ -772,6 +947,71 @@ class CompassScorecardNode:
             evaluated_at=evaluated_at,
         )
 
+    @staticmethod
+    def _from_edge_level(edge_raw: Dict[str, Any], path: str) -> "CompassScorecardNode":
+        node_raw = edge_raw.get("node")
+        node_obj = _expect_dict(node_raw, f"{{path}}.node")
+        scorecard_id = _expect_str(
+            node_obj.get(NODE_SCORECARD_ID_FIELD_NAME),
+            f"{{path}}.node.{{NODE_SCORECARD_ID_FIELD_NAME}}",
+        )
+        scorecard_name: Optional[str] = None
+        if NODE_SCORECARD_NAME_FIELD_NAME:
+            scorecard_name = _expect_optional_str(
+                node_obj.get(NODE_SCORECARD_NAME_FIELD_NAME),
+                f"{{path}}.node.{{NODE_SCORECARD_NAME_FIELD_NAME}}",
+            )
+        score_obj_raw = edge_raw.get(EDGE_SCORE_FIELD_NAME)
+        score_obj = _expect_dict(score_obj_raw, f"{{path}}.{{EDGE_SCORE_FIELD_NAME}}")
+        if SCORE_FIELD_NULLABLE:
+            score_value = _expect_optional_float(
+                score_obj.get(SCORE_FIELD_NAME), f"{{path}}.{{EDGE_SCORE_FIELD_NAME}}.{{SCORE_FIELD_NAME}}"
+            )
+            if score_value is None:
+                raise SerializationError(
+                    f"Expected number at {{path}}.{{EDGE_SCORE_FIELD_NAME}}.{{SCORE_FIELD_NAME}}"
+                )
+        else:
+            score_value = _expect_float(
+                score_obj.get(SCORE_FIELD_NAME), f"{{path}}.{{EDGE_SCORE_FIELD_NAME}}.{{SCORE_FIELD_NAME}}"
+            )
+        max_score: Optional[float] = None
+        if MAX_SCORE_FIELD_NAME:
+            value = score_obj.get(MAX_SCORE_FIELD_NAME)
+            if MAX_SCORE_FIELD_NULLABLE:
+                max_score = _expect_optional_float(
+                    value, f"{{path}}.{{EDGE_SCORE_FIELD_NAME}}.{{MAX_SCORE_FIELD_NAME}}"
+                )
+            else:
+                max_score = _expect_float(
+                    value, f"{{path}}.{{EDGE_SCORE_FIELD_NAME}}.{{MAX_SCORE_FIELD_NAME}}"
+                )
+        evaluated_at: Optional[str] = None
+        if EVALUATED_AT_FIELD_NAME:
+            value = score_obj.get(EVALUATED_AT_FIELD_NAME)
+            if EVALUATED_AT_FIELD_NULLABLE:
+                evaluated_at = _expect_optional_str(
+                    value, f"{{path}}.{{EDGE_SCORE_FIELD_NAME}}.{{EVALUATED_AT_FIELD_NAME}}"
+                )
+            else:
+                evaluated_at = _expect_str(
+                    value, f"{{path}}.{{EDGE_SCORE_FIELD_NAME}}.{{EVALUATED_AT_FIELD_NAME}}"
+                )
+        return CompassScorecardNode(
+            scorecard_id=scorecard_id,
+            scorecard_name=scorecard_name,
+            score=score_value,
+            max_score=max_score,
+            evaluated_at=evaluated_at,
+        )
+
+    @staticmethod
+    def from_dict(obj: Any, path: str) -> "CompassScorecardNode":
+        raw = _expect_dict(obj, path)
+        if SCORE_ON_EDGE:
+            return CompassScorecardNode._from_edge_level(raw, path)
+        return CompassScorecardNode._from_node_level(raw, path)
+
 
 @dataclass(frozen=True)
 class CompassScorecardEdge:
@@ -786,7 +1026,11 @@ class CompassScorecardEdge:
             value = raw.get("cursor")
             if value is not None:
                 cursor = _expect_str(value, f"{{path}}.cursor")
-        node = CompassScorecardNode.from_dict(raw.get("node"), f"{{path}}.node")
+        if SCORE_ON_EDGE:
+            # Pass the full edge raw dict so _from_edge_level can read node + score fields
+            node = CompassScorecardNode._from_edge_level(raw, path)
+        else:
+            node = CompassScorecardNode.from_dict(raw.get("node"), f"{{path}}.node")
         return CompassScorecardEdge(cursor=cursor, node=node)
 
 
